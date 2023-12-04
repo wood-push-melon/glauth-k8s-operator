@@ -1,5 +1,6 @@
 # GLAuth Kubernetes Charmed Operator
 
+[![CharmHub Badge](https://charmhub.io/glauth-k8s/badge.svg)](https://charmhub.io/glauth-k8s)
 ![Python](https://img.shields.io/python/required-version-toml?label=Python&tomlFilePath=https://raw.githubusercontent.com/canonical/glauth-k8s-operator/main/pyproject.toml)
 [![Juju](https://img.shields.io/badge/Juju%20-3.0+-%23E95420)](https://github.com/juju/juju)
 ![Ubuntu](https://img.shields.io/badge/Ubuntu-22.04-E95420?label=Ubuntu&logo=ubuntu&logoColor=white)
