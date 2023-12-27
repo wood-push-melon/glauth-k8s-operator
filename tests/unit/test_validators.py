@@ -3,11 +3,10 @@
 
 from unittest.mock import MagicMock, sentinel
 
+from constants import DATABASE_INTEGRATION_NAME, WORKLOAD_CONTAINER
 from ops.charm import CharmBase, HookEvent
 from ops.model import BlockedStatus, WaitingStatus
 from ops.testing import Harness
-
-from constants import DATABASE_INTEGRATION_NAME, WORKLOAD_CONTAINER
 from validators import (
     leader_unit,
     validate_container_connectivity,

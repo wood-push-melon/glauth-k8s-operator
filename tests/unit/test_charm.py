@@ -4,12 +4,11 @@
 from unittest.mock import MagicMock
 
 import pytest
+from constants import WORKLOAD_CONTAINER, WORKLOAD_SERVICE
+from kubernetes_resource import KubernetesResourceError
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
 from ops.testing import Harness
 from pytest_mock import MockerFixture
-
-from constants import WORKLOAD_CONTAINER, WORKLOAD_SERVICE
-from kubernetes_resource import KubernetesResourceError
 
 
 class TestInstallEvent:

@@ -4,11 +4,10 @@
 from unittest.mock import MagicMock
 
 import pytest
-from ops.testing import Harness
-from pytest_mock import MockerFixture
-
 from charm import GLAuthCharm
 from constants import DATABASE_INTEGRATION_NAME
+from ops.testing import Harness
+from pytest_mock import MockerFixture
 
 DB_APP = "postgresql-k8s"
 DB_USERNAME = "relation_id"
