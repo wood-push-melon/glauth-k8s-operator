@@ -68,7 +68,7 @@ def validate_database_resource(func: Callable) -> Callable:
         event, *_ = args
         logger.debug(f"Handling event: {event}")
 
-        if not self.database.is_resource_created():
+        if not self.database_requirer.is_resource_created():
             logger.debug(f"Database has not been created yet, defer event {event}")
             event.defer()
 

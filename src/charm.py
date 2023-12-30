@@ -18,7 +18,19 @@ from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.loki_k8s.v0.loki_push_api import LogProxyConsumer, PromtailDigestError
 from charms.observability_libs.v0.kubernetes_service_patch import KubernetesServicePatch
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
-from jinja2 import Template
+from configs import ConfigFile, DatabaseConfig, pebble_layer
+from constants import (
+    DATABASE_INTEGRATION_NAME,
+    GLAUTH_CONFIG_DIR,
+    GLAUTH_LDAP_PORT,
+    GRAFANA_DASHBOARD_INTEGRATION_NAME,
+    LOG_DIR,
+    LOG_FILE,
+    LOKI_API_PUSH_INTEGRATION_NAME,
+    PROMETHEUS_SCRAPE_INTEGRATION_NAME,
+    WORKLOAD_CONTAINER,
+)
+from kubernetes_resource import ConfigMapResource, StatefulSetResource
 from lightkube import Client
 from ops.charm import (
     CharmBase,
@@ -30,22 +42,7 @@ from ops.charm import (
 )
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
-from ops.pebble import ChangeError, Layer
-
-from constants import (
-    DATABASE_INTEGRATION_NAME,
-    GLAUTH_COMMANDS,
-    GLAUTH_CONFIG_DIR,
-    GLAUTH_LDAP_PORT,
-    GRAFANA_DASHBOARD_INTEGRATION_NAME,
-    LOG_DIR,
-    LOG_FILE,
-    LOKI_API_PUSH_INTEGRATION_NAME,
-    PROMETHEUS_SCRAPE_INTEGRATION_NAME,
-    WORKLOAD_CONTAINER,
-    WORKLOAD_SERVICE,
-)
-from kubernetes_resource import ConfigMapResource, StatefulSetResource
+from ops.pebble import ChangeError
 from validators import (
     leader_unit,
     validate_container_connectivity,
@@ -68,7 +65,7 @@ class GLAuthCharm(CharmBase):
         self._statefulset = StatefulSetResource(client=self._k8s_client, name=self.app.name)
 
         self._db_name = f"{self.model.name}_{self.app.name}"
-        self.database = DatabaseRequires(
+        self.database_requirer = DatabaseRequires(
             self,
             relation_name=DATABASE_INTEGRATION_NAME,
             database_name=self._db_name,
@@ -94,31 +91,18 @@ class GLAuthCharm(CharmBase):
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.remove, self._on_remove)
         self.framework.observe(self.on.glauth_pebble_ready, self._on_pebble_ready)
-        self.framework.observe(self.database.on.database_created, self._on_database_created)
-        self.framework.observe(self.database.on.endpoints_changed, self._on_database_changed)
+        self.framework.observe(
+            self.database_requirer.on.database_created, self._on_database_created
+        )
+        self.framework.observe(
+            self.database_requirer.on.endpoints_changed, self._on_database_changed
+        )
         self.framework.observe(
             self.loki_consumer.on.promtail_digest_error,
             self._on_promtail_error,
         )
 
-    @property
-    def _pebble_layer(self) -> Layer:
-        pebble_layer = {
-            "summary": "GLAuth layer",
-            "description": "pebble layer for GLAuth service",
-            "services": {
-                WORKLOAD_SERVICE: {
-                    "override": "replace",
-                    "summary": "GLAuth Operator layer",
-                    "startup": "disabled",
-                    "command": '/bin/sh -c "{} 2>&1 | tee {}"'.format(
-                        GLAUTH_COMMANDS,
-                        LOG_FILE,
-                    ),
-                }
-            },
-        }
-        return Layer(pebble_layer)
+        self.config_file = ConfigFile(base_dn=self.config.get("base_dn"))
 
     def _restart_glauth_service(self) -> None:
         try:
@@ -136,37 +120,14 @@ class GLAuthCharm(CharmBase):
         self.unit.status = MaintenanceStatus("Configuring GLAuth container")
 
         self._update_glauth_config()
-        self._container.add_layer(WORKLOAD_CONTAINER, self._pebble_layer, combine=True)
+        self._container.add_layer(WORKLOAD_CONTAINER, pebble_layer, combine=True)
 
         self._restart_glauth_service()
         self.unit.status = ActiveStatus()
 
-    def _fetch_database_relation_data(self) -> dict:
-        relation_id = self.database.relations[0].id
-        relation_data = self.database.fetch_relation_data()[relation_id]
-
-        return {
-            "username": relation_data.get("username"),
-            "password": relation_data.get("password"),
-            "endpoints": relation_data.get("endpoints"),
-            "database_name": self._db_name,
-        }
-
-    def _render_config_file(self) -> str:
-        with open("templates/glauth.cfg.j2", mode="r") as file:
-            template = Template(file.read())
-
-        rendered = template.render(
-            db_info=self._fetch_database_relation_data(),
-            ldap_port=GLAUTH_LDAP_PORT,
-            base_dn=self.config.get("base_dn"),
-        )
-        return rendered
-
     @leader_unit
     def _update_glauth_config(self) -> None:
-        conf = self._render_config_file()
-        self._configmap.patch({"glauth.cfg": conf})
+        self._configmap.patch({"glauth.cfg": self.config_file.content})
 
     @leader_unit
     def _mount_glauth_config(self) -> None:
@@ -202,16 +163,19 @@ class GLAuthCharm(CharmBase):
         self._configmap.delete()
 
     def _on_database_created(self, event: DatabaseCreatedEvent) -> None:
+        self.config_file.database_config = DatabaseConfig.load_config(self.database_requirer)
         self._update_glauth_config()
         self._mount_glauth_config()
-        self._container.add_layer(WORKLOAD_CONTAINER, self._pebble_layer, combine=True)
+        self._container.add_layer(WORKLOAD_CONTAINER, pebble_layer, combine=True)
         self._restart_glauth_service()
         self.unit.status = ActiveStatus()
 
     def _on_database_changed(self, event: DatabaseEndpointsChangedEvent) -> None:
+        self.config_file.database_config = DatabaseConfig.load_config(self.database_requirer)
         self._handle_event_update(event)
 
     def _on_config_changed(self, event: ConfigChangedEvent) -> None:
+        self.config_file.base_dn = self.config.get("base_dn")
         self._handle_event_update(event)
 
     @validate_container_connectivity

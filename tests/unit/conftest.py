@@ -70,7 +70,7 @@ def database_resource(
     mocked_statefulset: MagicMock,
     database_relation: int,
 ) -> None:
-    mocker.patch("charm.GLAuthCharm._render_config_file")
+    mocker.patch("charm.GLAuthCharm._update_glauth_config")
 
     harness.update_relation_data(
         database_relation,
