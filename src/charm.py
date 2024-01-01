@@ -43,6 +43,7 @@ from ops.charm import (
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
 from ops.pebble import ChangeError
+from utils import after_config_updated
 from validators import (
     leader_unit,
     validate_container_connectivity,
@@ -104,6 +105,7 @@ class GLAuthCharm(CharmBase):
 
         self.config_file = ConfigFile(base_dn=self.config.get("base_dn"))
 
+    @after_config_updated
     def _restart_glauth_service(self) -> None:
         try:
             self._container.restart(WORKLOAD_CONTAINER)
@@ -156,7 +158,8 @@ class GLAuthCharm(CharmBase):
 
     @leader_unit
     def _on_install(self, event: InstallEvent) -> None:
-        self._configmap.create()
+        self._configmap.create(data={"glauth.cfg": self.config_file.content})
+        self._mount_glauth_config()
 
     @leader_unit
     def _on_remove(self, event: RemoveEvent) -> None:
@@ -165,7 +168,6 @@ class GLAuthCharm(CharmBase):
     def _on_database_created(self, event: DatabaseCreatedEvent) -> None:
         self.config_file.database_config = DatabaseConfig.load_config(self.database_requirer)
         self._update_glauth_config()
-        self._mount_glauth_config()
         self._container.add_layer(WORKLOAD_CONTAINER, pebble_layer, combine=True)
         self._restart_glauth_service()
         self.unit.status = ActiveStatus()
