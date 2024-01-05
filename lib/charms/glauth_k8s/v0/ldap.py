@@ -245,8 +245,13 @@ class LdapProvider(Object):
         """Handle the event emitted when the requirer charm provides the necessary data."""
         self.on.ldap_requested.emit(event.relation)
 
-    def update_relation_app_data(self, /, relation_id: int, data: LdapProviderData) -> None:
+    def update_relation_app_data(
+        self, /, relation_id: int, data: Optional[LdapProviderData]
+    ) -> None:
         """An API for the provider charm to provide the LDAP related information."""
+        if data is None:
+            return
+
         relation = self.charm.model.get_relation(self._relation_name, relation_id)
         _update_relation_app_databag(self.charm, relation, asdict(data))
 

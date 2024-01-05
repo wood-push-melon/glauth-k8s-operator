@@ -7,7 +7,7 @@ from constants import DATABASE_INTEGRATION_NAME, WORKLOAD_CONTAINER
 from ops.charm import CharmBase, HookEvent
 from ops.model import BlockedStatus, WaitingStatus
 from ops.testing import Harness
-from validators import (
+from utils import (
     leader_unit,
     validate_container_connectivity,
     validate_database_resource,
@@ -15,7 +15,7 @@ from validators import (
 )
 
 
-class TestValidators:
+class TestUtils:
     def test_leader_unit(self, harness: Harness) -> None:
         @leader_unit
         def wrapped_func(charm: CharmBase) -> sentinel:

@@ -14,6 +14,7 @@ from charms.data_platform_libs.v0.data_interfaces import (
     DatabaseEndpointsChangedEvent,
     DatabaseRequires,
 )
+from charms.glauth_k8s.v0.ldap import LdapProvider, LdapRequestedEvent
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.loki_k8s.v0.loki_push_api import LogProxyConsumer, PromtailDigestError
 from charms.observability_libs.v0.kubernetes_service_patch import KubernetesServicePatch
@@ -30,6 +31,7 @@ from constants import (
     PROMETHEUS_SCRAPE_INTEGRATION_NAME,
     WORKLOAD_CONTAINER,
 )
+from integrations import LdapIntegration
 from kubernetes_resource import ConfigMapResource, StatefulSetResource
 from lightkube import Client
 from ops.charm import (
@@ -43,8 +45,8 @@ from ops.charm import (
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
 from ops.pebble import ChangeError
-from utils import after_config_updated
-from validators import (
+from utils import (
+    after_config_updated,
     leader_unit,
     validate_container_connectivity,
     validate_database_resource,
@@ -71,6 +73,12 @@ class GLAuthCharm(CharmBase):
             relation_name=DATABASE_INTEGRATION_NAME,
             database_name=self._db_name,
             extra_user_roles="SUPERUSER",
+        )
+
+        self.ldap_provider = LdapProvider(self)
+        self.framework.observe(
+            self.ldap_provider.on.ldap_requested,
+            self._on_ldap_requested,
         )
 
         self.service_patcher = KubernetesServicePatch(self, [("ldap", GLAUTH_LDAP_PORT)])
@@ -104,6 +112,7 @@ class GLAuthCharm(CharmBase):
         )
 
         self.config_file = ConfigFile(base_dn=self.config.get("base_dn"))
+        self._ldap_integration = LdapIntegration(self)
 
     @after_config_updated
     def _restart_glauth_service(self) -> None:
@@ -120,6 +129,8 @@ class GLAuthCharm(CharmBase):
     @validate_database_resource
     def _handle_event_update(self, event: HookEvent) -> None:
         self.unit.status = MaintenanceStatus("Configuring GLAuth container")
+
+        self.config_file.database_config = DatabaseConfig.load(self.database_requirer)
 
         self._update_glauth_config()
         self._container.add_layer(WORKLOAD_CONTAINER, pebble_layer, combine=True)
@@ -166,14 +177,13 @@ class GLAuthCharm(CharmBase):
         self._configmap.delete()
 
     def _on_database_created(self, event: DatabaseCreatedEvent) -> None:
-        self.config_file.database_config = DatabaseConfig.load_config(self.database_requirer)
+        self.config_file.database_config = DatabaseConfig.load(self.database_requirer)
         self._update_glauth_config()
         self._container.add_layer(WORKLOAD_CONTAINER, pebble_layer, combine=True)
         self._restart_glauth_service()
         self.unit.status = ActiveStatus()
 
     def _on_database_changed(self, event: DatabaseEndpointsChangedEvent) -> None:
-        self.config_file.database_config = DatabaseConfig.load_config(self.database_requirer)
         self._handle_event_update(event)
 
     def _on_config_changed(self, event: ConfigChangedEvent) -> None:
@@ -187,6 +197,20 @@ class GLAuthCharm(CharmBase):
             logger.debug(f"Created logging directory {LOG_DIR}")
 
         self._handle_event_update(event)
+
+    @validate_database_resource
+    def _on_ldap_requested(self, event: LdapRequestedEvent) -> None:
+        if not (requirer_data := event.data):
+            logger.error(
+                f"The LDAP requirer {event.app.name} does not provide " f"necessary data."
+            )
+            return
+
+        self._ldap_integration.load_bind_account(requirer_data.user, requirer_data.group)
+        self.ldap_provider.update_relation_app_data(
+            event.relation.id,
+            self._ldap_integration.provider_data,
+        )
 
     def _on_promtail_error(self, event: PromtailDigestError) -> None:
         logger.error(event.message)

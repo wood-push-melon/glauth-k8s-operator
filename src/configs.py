@@ -1,7 +1,7 @@
 from dataclasses import asdict, dataclass
 from typing import Any, Optional
 
-from constants import GLAUTH_COMMANDS, LOG_FILE, WORKLOAD_SERVICE
+from constants import GLAUTH_COMMANDS, LOG_FILE, POSTGRESQL_DSN_TEMPLATE, WORKLOAD_SERVICE
 from jinja2 import Template
 from ops.pebble import Layer
 
@@ -13,8 +13,17 @@ class DatabaseConfig:
     username: Optional[str] = None
     password: Optional[str] = None
 
+    @property
+    def dsn(self) -> str:
+        return POSTGRESQL_DSN_TEMPLATE.substitute(
+            username=self.username,
+            password=self.password,
+            endpoint=self.endpoint,
+            database=self.database,
+        )
+
     @classmethod
-    def load_config(cls, requirer: Any) -> "DatabaseConfig":
+    def load(cls, requirer: Any) -> "DatabaseConfig":
         if not (database_integrations := requirer.relations):
             return DatabaseConfig()
 
