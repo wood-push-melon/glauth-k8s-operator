@@ -12,5 +12,5 @@ options:
     type: string
   hostname:
     description: The hostname of the LDAP server
-    default: "ldap.canonical.com"
+    default: "ldap.glauth.com"
     type: string

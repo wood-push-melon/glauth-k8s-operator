@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from secrets import token_bytes
 from typing import Optional
 
-from charms.glauth_k8s.v0.ldap import LdapProviderData
+from charms.glauth_k8s.v0.ldap import LdapProviderBaseData, LdapProviderData
 from configs import DatabaseConfig
 from constants import DEFAULT_GID, DEFAULT_UID, GLAUTH_LDAP_PORT
 from database import Capability, Group, Operation, User
@@ -54,14 +54,29 @@ class LdapIntegration:
         self._bind_account = _create_bind_account(database_config.dsn, user, group)
 
     @property
+    def ldap_url(self) -> str:
+        return f"ldap://{self._charm.config.get('hostname')}:{GLAUTH_LDAP_PORT}"
+
+    @property
+    def base_dn(self) -> str:
+        return self._charm.config.get("base_dn")
+
+    @property
+    def provider_base_data(self) -> LdapProviderBaseData:
+        return LdapProviderBaseData(
+            url=self.ldap_url,
+            base_dn=self.base_dn,
+        )
+
+    @property
     def provider_data(self) -> Optional[LdapProviderData]:
         if not self._bind_account:
             return None
 
         return LdapProviderData(
-            url=f"ldap://{self._charm.config.get('hostname')}:{GLAUTH_LDAP_PORT}",
-            base_dn=self._charm.config.get("base_dn"),
-            bind_dn=f"cn={self._bind_account.cn},ou={self._bind_account.ou},{self._charm.config.get('base_dn')}",
+            url=self.ldap_url,
+            base_dn=self.base_dn,
+            bind_dn=f"cn={self._bind_account.cn},ou={self._bind_account.ou},{self.base_dn}",
             bind_password_secret=self._bind_account.password or "",
             auth_method="simple",
             starttls=True,

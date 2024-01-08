@@ -109,7 +109,7 @@ class ProviderCharm(CharmBase):
         ldap_data = ...
 
         # Update the integration data
-        self.ldap_provider.update_relation_app_data(
+        self.ldap_provider.update_relations_app_data(
             relation.id,
             ldap_data,
         )
@@ -122,11 +122,9 @@ situations, which are listed below:
 LDAP related information in order to connect and authenticate to the LDAP server
 """
 
-from dataclasses import asdict, dataclass
 from functools import wraps
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, Literal, Optional, Union
 
-from dacite import Config, from_dict
 from ops.charm import (
     CharmBase,
     RelationBrokenEvent,
@@ -136,6 +134,14 @@ from ops.charm import (
 )
 from ops.framework import EventSource, Object, ObjectEvents
 from ops.model import Relation
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    StrictBool,
+    ValidationError,
+    field_serializer,
+    field_validator,
+)
 
 # The unique CharmHub library identifier, never change it
 LIBID = "5a535b3c4d0b40da98e29867128e57b9"
@@ -147,7 +153,7 @@ LIBAPI = 0
 # to 0 if you are raising the major API version
 LIBPATCH = 2
 
-PYDEPS = ["dacite~=1.8.0"]
+PYDEPS = ["pydantic~=2.5.3"]
 
 DEFAULT_RELATION_NAME = "ldap"
 
@@ -176,18 +182,43 @@ def _update_relation_app_databag(
     relation.data[ldap.app].update(data)
 
 
-@dataclass(frozen=True)
-class LdapProviderData:
+class LdapProviderBaseData(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     url: str
     base_dn: str
+
+    @field_validator("url")
+    @classmethod
+    def validate_ldap_url(cls, v: str) -> str:
+        if not v.startswith("ldap://"):
+            raise ValidationError("Invalid LDAP URL scheme.")
+
+        return v
+
+
+class LdapProviderData(LdapProviderBaseData):
     bind_dn: str
     bind_password_secret: str
-    auth_method: str
-    starttls: bool
+    auth_method: Literal["simple"]
+    starttls: StrictBool
+
+    @field_validator("starttls", mode="before")
+    @classmethod
+    def deserialize_bool(cls, v: str | bool) -> bool:
+        if isinstance(v, str):
+            return True if v.casefold() == "true" else False
+
+        return v
+
+    @field_serializer("starttls")
+    def serialize_bool(self, starttls: bool) -> str:
+        return str(starttls)
 
 
-@dataclass(frozen=True)
-class LdapRequirerData:
+class LdapRequirerData(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     user: str
     group: str
 
@@ -198,9 +229,7 @@ class LdapRequestedEvent(RelationEvent):
     @property
     def data(self) -> Optional[LdapRequirerData]:
         relation_data = self.relation.data.get(self.relation.app)
-        return (
-            from_dict(data_class=LdapRequirerData, data=relation_data) if relation_data else None
-        )
+        return LdapRequirerData(**relation_data) if relation_data else None
 
 
 class LdapProviderEvents(ObjectEvents):
@@ -245,15 +274,21 @@ class LdapProvider(Object):
         """Handle the event emitted when the requirer charm provides the necessary data."""
         self.on.ldap_requested.emit(event.relation)
 
-    def update_relation_app_data(
-        self, /, relation_id: int, data: Optional[LdapProviderData]
+    def update_relations_app_data(
+        self, /, data: Optional[LdapProviderBaseData] = None, relation_id: Optional[int] = None
     ) -> None:
         """An API for the provider charm to provide the LDAP related information."""
         if data is None:
             return
 
-        relation = self.charm.model.get_relation(self._relation_name, relation_id)
-        _update_relation_app_databag(self.charm, relation, asdict(data))
+        if not (relations := self.charm.model.relations.get(self._relation_name)):
+            return
+
+        if relation_id is not None:
+            relations = [relation for relation in relations if relation.id == relation_id]
+
+        for relation in relations:
+            _update_relation_app_databag(self.charm, relation, data.model_dump())
 
 
 class LdapRequirer(Object):
@@ -320,12 +355,4 @@ class LdapRequirer(Object):
             return None
 
         provider_data = relation.data.get(relation.app)
-        return (
-            from_dict(
-                data_class=LdapProviderData,
-                data=provider_data,
-                config=Config(cast=[bool]),
-            )
-            if provider_data
-            else None
-        )
+        return LdapProviderData(**provider_data) if provider_data else None

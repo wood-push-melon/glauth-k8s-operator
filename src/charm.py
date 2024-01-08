@@ -189,6 +189,9 @@ class GLAuthCharm(CharmBase):
     def _on_config_changed(self, event: ConfigChangedEvent) -> None:
         self.config_file.base_dn = self.config.get("base_dn")
         self._handle_event_update(event)
+        self.ldap_provider.update_relations_app_data(
+            data=self._ldap_integration.provider_base_data
+        )
 
     @validate_container_connectivity
     def _on_pebble_ready(self, event: PebbleReadyEvent) -> None:
@@ -207,9 +210,9 @@ class GLAuthCharm(CharmBase):
             return
 
         self._ldap_integration.load_bind_account(requirer_data.user, requirer_data.group)
-        self.ldap_provider.update_relation_app_data(
-            event.relation.id,
-            self._ldap_integration.provider_data,
+        self.ldap_provider.update_relations_app_data(
+            relation_id=event.relation.id,
+            data=self._ldap_integration.provider_data,
         )
 
     def _on_promtail_error(self, event: PromtailDigestError) -> None:
