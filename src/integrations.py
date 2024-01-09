@@ -5,6 +5,7 @@ from secrets import token_bytes
 from typing import Optional
 
 from charms.glauth_k8s.v0.ldap import LdapProviderBaseData, LdapProviderData
+from charms.glauth_utils.v0.glauth_auxiliary import AuxiliaryData
 from configs import DatabaseConfig
 from constants import DEFAULT_GID, DEFAULT_UID, GLAUTH_LDAP_PORT
 from database import Capability, Group, Operation, User
@@ -80,4 +81,20 @@ class LdapIntegration:
             bind_password_secret=self._bind_account.password or "",
             auth_method="simple",
             starttls=True,
+        )
+
+
+class AuxiliaryIntegration:
+    def __init__(self, charm: CharmBase):
+        self._charm = charm
+
+    @property
+    def auxiliary_data(self) -> AuxiliaryData:
+        database_config = DatabaseConfig.load(self._charm.database_requirer)
+
+        return AuxiliaryData(
+            database=database_config.database,
+            endpoint=database_config.endpoint,
+            username=database_config.username,
+            password=database_config.password,
         )

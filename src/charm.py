@@ -15,6 +15,7 @@ from charms.data_platform_libs.v0.data_interfaces import (
     DatabaseRequires,
 )
 from charms.glauth_k8s.v0.ldap import LdapProvider, LdapRequestedEvent
+from charms.glauth_utils.v0.glauth_auxiliary import AuxiliaryProvider, AuxiliaryRequestedEvent
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.loki_k8s.v0.loki_push_api import LogProxyConsumer, PromtailDigestError
 from charms.observability_libs.v0.kubernetes_service_patch import KubernetesServicePatch
@@ -31,7 +32,7 @@ from constants import (
     PROMETHEUS_SCRAPE_INTEGRATION_NAME,
     WORKLOAD_CONTAINER,
 )
-from integrations import LdapIntegration
+from integrations import AuxiliaryIntegration, LdapIntegration
 from kubernetes_resource import ConfigMapResource, StatefulSetResource
 from lightkube import Client
 from ops.charm import (
@@ -81,6 +82,12 @@ class GLAuthCharm(CharmBase):
             self._on_ldap_requested,
         )
 
+        self.auxiliary_provider = AuxiliaryProvider(self)
+        self.framework.observe(
+            self.auxiliary_provider.on.auxiliary_requested,
+            self._on_auxiliary_requested,
+        )
+
         self.service_patcher = KubernetesServicePatch(self, [("ldap", GLAUTH_LDAP_PORT)])
 
         self.loki_consumer = LogProxyConsumer(
@@ -113,6 +120,7 @@ class GLAuthCharm(CharmBase):
 
         self.config_file = ConfigFile(base_dn=self.config.get("base_dn"))
         self._ldap_integration = LdapIntegration(self)
+        self._auxiliary_integration = AuxiliaryIntegration(self)
 
     @after_config_updated
     def _restart_glauth_service(self) -> None:
@@ -179,12 +187,20 @@ class GLAuthCharm(CharmBase):
     def _on_database_created(self, event: DatabaseCreatedEvent) -> None:
         self.config_file.database_config = DatabaseConfig.load(self.database_requirer)
         self._update_glauth_config()
+
         self._container.add_layer(WORKLOAD_CONTAINER, pebble_layer, combine=True)
         self._restart_glauth_service()
         self.unit.status = ActiveStatus()
 
+        self.auxiliary_provider.update_relation_app_data(
+            data=self._auxiliary_integration.auxiliary_data,
+        )
+
     def _on_database_changed(self, event: DatabaseEndpointsChangedEvent) -> None:
         self._handle_event_update(event)
+        self.auxiliary_provider.update_relation_app_data(
+            data=self._auxiliary_integration.auxiliary_data,
+        )
 
     def _on_config_changed(self, event: ConfigChangedEvent) -> None:
         self.config_file.base_dn = self.config.get("base_dn")
@@ -213,6 +229,13 @@ class GLAuthCharm(CharmBase):
         self.ldap_provider.update_relations_app_data(
             relation_id=event.relation.id,
             data=self._ldap_integration.provider_data,
+        )
+
+    @validate_database_resource
+    def _on_auxiliary_requested(self, event: AuxiliaryRequestedEvent) -> None:
+        self.auxiliary_provider.update_relation_app_data(
+            relation_id=event.relation.id,
+            data=self._auxiliary_integration.auxiliary_data,
         )
 
     def _on_promtail_error(self, event: PromtailDigestError) -> None:

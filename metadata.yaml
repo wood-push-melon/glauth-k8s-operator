@@ -40,3 +40,7 @@ provides:
     description: |
       Provides LDAP configuration data
     interface: ldap
+  glauth-auxiliary:
+    description: |
+      Provides auxiliary data for glauth-utils charmed operator
+    interface: glauth_auxiliary
