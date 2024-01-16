@@ -79,10 +79,10 @@ def validate_database_resource(func: Callable) -> Callable:
     @wraps(func)
     def wrapper(charm: CharmBase, *args: EventBase, **kwargs: Any) -> Optional[Any]:
         event, *_ = args
-        logger.info(f"Handling event: {event}")
+        logger.debug(f"Handling event: {event}")
 
         if not charm.database_requirer.is_resource_created():
-            logger.info(f"Database has not been created yet, defer event {event}")
+            logger.debug(f"Database has not been created yet, defer event {event}")
             event.defer()
 
             charm.unit.status = WaitingStatus("Waiting for database creation")

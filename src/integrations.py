@@ -1,15 +1,36 @@
 import hashlib
+import json
 import logging
+import subprocess
 from dataclasses import dataclass
 from secrets import token_bytes
 from typing import Optional
 
+from charms.certificate_transfer_interface.v0.certificate_transfer import (
+    CertificateTransferProvides,
+)
 from charms.glauth_k8s.v0.ldap import LdapProviderBaseData, LdapProviderData
 from charms.glauth_utils.v0.glauth_auxiliary import AuxiliaryData
+from charms.observability_libs.v1.cert_handler import CertHandler
 from configs import DatabaseConfig
-from constants import DEFAULT_GID, DEFAULT_UID, GLAUTH_LDAP_PORT
+from constants import (
+    CERTIFICATE_FILE,
+    CERTIFICATES_TRANSFER_INTEGRATION_NAME,
+    DEFAULT_GID,
+    DEFAULT_UID,
+    GLAUTH_LDAP_PORT,
+    SERVER_CA_CERT,
+    SERVER_CERT,
+    SERVER_KEY,
+)
 from database import Capability, Group, Operation, User
 from ops.charm import CharmBase
+from tenacity import (
+    Retrying,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_fixed,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -98,3 +119,132 @@ class AuxiliaryIntegration:
             username=database_config.username,
             password=database_config.password,
         )
+
+
+@dataclass
+class CertificateData:
+    ca_cert: Optional[str] = None
+    ca_chain: Optional[list[str]] = None
+    cert: Optional[str] = None
+
+
+class CertificatesIntegration:
+    def __init__(self, charm: CharmBase) -> None:
+        self._charm = charm
+        self._container = charm._container
+
+        hostname = charm.config.get("hostname")
+        self.cert_handler = CertHandler(
+            charm,
+            key="glauth-server-cert",
+            cert_subject=hostname,
+            sans=[hostname],
+        )
+
+    @property
+    def _ca_cert(self) -> Optional[str]:
+        return self.cert_handler.ca_cert
+
+    @property
+    def _server_key(self) -> Optional[str]:
+        return self.cert_handler.server_cert
+
+    @property
+    def _server_cert(self) -> Optional[str]:
+        return self.cert_handler.server_cert
+
+    @property
+    def _ca_chain(self) -> list[str]:
+        return json.loads(self.cert_handler.chain or "[]")
+
+    @property
+    def cert_data(self) -> CertificateData:
+        return CertificateData(
+            ca_cert=self._ca_cert,
+            ca_chain=self._ca_chain,
+            cert=self._server_cert,
+        )
+
+    def update_certificates(self) -> None:
+        if not self.cert_handler.enabled:
+            logger.debug("The certificates integration is not ready.")
+            self._remove_certificates()
+            return
+
+        if not self.certs_ready():
+            logger.debug("The certificates data is not ready.")
+            self._remove_certificates()
+            return
+
+        self._prepare_certificates()
+        self._add_certificates()
+
+    def certs_ready(self) -> bool:
+        return all((self._ca_cert, self._ca_chain, self._server_key, self._server_cert))
+
+    def _prepare_certificates(self) -> None:
+        SERVER_CA_CERT.write_text(self.cert_handler.ca_cert)  # type: ignore[arg-type]
+        SERVER_KEY.write_text(self.cert_handler.private_key)  # type: ignore[arg-type]
+        SERVER_CERT.write_text(self.cert_handler.server_cert)  # type: ignore[arg-type]
+
+        try:
+            for attempt in Retrying(
+                wait=wait_fixed(3),
+                stop=stop_after_attempt(3),
+                retry=retry_if_exception_type(subprocess.CalledProcessError),
+                reraise=True,
+            ):
+                with attempt:
+                    subprocess.run(
+                        ["update-ca-certificates", "--fresh"],
+                        check=True,
+                        text=True,
+                        capture_output=True,
+                    )
+        except subprocess.CalledProcessError as e:
+            logger.error(f"{e.stderr}")
+
+    def _add_certificates(self) -> None:
+        self._container.push(CERTIFICATE_FILE, CERTIFICATE_FILE.read_text(), make_dirs=True)
+        self._container.push(SERVER_CA_CERT, self._ca_cert, make_dirs=True)
+        self._container.push(SERVER_KEY, self._server_key, make_dirs=True)
+        self._container.push(SERVER_CERT, self._server_cert, make_dirs=True)
+
+    def _remove_certificates(self) -> None:
+        self._container.remove(CERTIFICATE_FILE)
+        self._container.remove_path(SERVER_CA_CERT)
+        self._container.remove_path(SERVER_KEY)
+        self._container.remove_path(SERVER_CERT)
+
+
+class CertificatesTransferIntegration:
+    def __init__(self, charm: CharmBase):
+        self._charm = charm
+        self._certs_transfer_provider = CertificateTransferProvides(
+            charm, relationship_name=CERTIFICATES_TRANSFER_INTEGRATION_NAME
+        )
+
+    def transfer_certificates(
+        self, /, data: CertificateData, relation_id: Optional[int] = None
+    ) -> None:
+        if not (
+            relations := self._charm.model.relations.get(CERTIFICATES_TRANSFER_INTEGRATION_NAME)
+        ):
+            return
+
+        if relation_id is not None:
+            relations = [relation for relation in relations if relation.id == relation_id]
+
+        ca_cert, ca_chain, certificate = data.ca_cert, data.ca_chain, data.cert
+        if not all((ca_cert, ca_chain, certificate)):
+            for relation in relations:
+                self._certs_transfer_provider.remove_certificate(relation_id=relation.id)
+            return
+
+        for relation in relations:
+            self._certs_transfer_provider.set_certificate(
+                ca=data.ca_cert,  # type: ignore[arg-type]
+                chain=data.ca_chain,  # type: ignore[arg-type]
+                certificate=data.cert,  # type: ignore[arg-type]
+                relation_id=relation.id,
+            )

@@ -19,9 +19,11 @@ from charms.glauth_utils.v0.glauth_auxiliary import AuxiliaryProvider, Auxiliary
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.loki_k8s.v0.loki_push_api import LogProxyConsumer, PromtailDigestError
 from charms.observability_libs.v0.kubernetes_service_patch import KubernetesServicePatch
+from charms.observability_libs.v1.cert_handler import CertChanged
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from configs import ConfigFile, DatabaseConfig, pebble_layer
 from constants import (
+    CERTIFICATES_TRANSFER_INTEGRATION_NAME,
     DATABASE_INTEGRATION_NAME,
     GLAUTH_CONFIG_DIR,
     GLAUTH_LDAP_PORT,
@@ -32,7 +34,12 @@ from constants import (
     PROMETHEUS_SCRAPE_INTEGRATION_NAME,
     WORKLOAD_CONTAINER,
 )
-from integrations import AuxiliaryIntegration, LdapIntegration
+from integrations import (
+    AuxiliaryIntegration,
+    CertificatesIntegration,
+    CertificatesTransferIntegration,
+    LdapIntegration,
+)
 from kubernetes_resource import ConfigMapResource, StatefulSetResource
 from lightkube import Client
 from ops.charm import (
@@ -41,6 +48,7 @@ from ops.charm import (
     HookEvent,
     InstallEvent,
     PebbleReadyEvent,
+    RelationJoinedEvent,
     RemoveEvent,
 )
 from ops.main import main
@@ -87,6 +95,18 @@ class GLAuthCharm(CharmBase):
         self.framework.observe(
             self.auxiliary_provider.on.auxiliary_requested,
             self._on_auxiliary_requested,
+        )
+
+        self._certs_integration = CertificatesIntegration(self)
+        self.framework.observe(
+            self._certs_integration.cert_handler.on.cert_changed,
+            self._on_cert_changed,
+        )
+
+        self._certs_transfer_integration = CertificatesTransferIntegration(self)
+        self.framework.observe(
+            self.on[CERTIFICATES_TRANSFER_INTEGRATION_NAME].relation_joined,
+            self._on_certificates_transfer_relation_joined,
         )
 
         self.service_patcher = KubernetesServicePatch(self, [("ldap", GLAUTH_LDAP_PORT)])
@@ -221,9 +241,7 @@ class GLAuthCharm(CharmBase):
     @validate_database_resource
     def _on_ldap_requested(self, event: LdapRequestedEvent) -> None:
         if not (requirer_data := event.data):
-            logger.error(
-                f"The LDAP requirer {event.app.name} does not provide " f"necessary data."
-            )
+            logger.error(f"The LDAP requirer {event.app.name} does not provide necessary data.")
             return
 
         self._ldap_integration.load_bind_account(requirer_data.user, requirer_data.group)
@@ -237,6 +255,22 @@ class GLAuthCharm(CharmBase):
         self.auxiliary_provider.update_relation_app_data(
             relation_id=event.relation.id,
             data=self._auxiliary_integration.auxiliary_data,
+        )
+
+    @validate_container_connectivity
+    def _on_cert_changed(self, event: CertChanged) -> None:
+        self._certs_integration.update_certificates()
+        self._certs_transfer_integration.transfer_certificates(
+            self._certs_integration.cert_data,
+        )
+
+    def _on_certificates_transfer_relation_joined(self, event: RelationJoinedEvent) -> None:
+        if not self._certs_integration.certs_ready():
+            event.defer()
+            return
+
+        self._certs_transfer_integration.transfer_certificates(
+            self._certs_integration.cert_data, event.relation.id
         )
 
     def _on_promtail_error(self, event: PromtailDigestError) -> None:
