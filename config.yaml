@@ -11,6 +11,9 @@ options:
     default: "dc=glauth,dc=com"
     type: string
   hostname:
-    description: The hostname of the LDAP server
+    description: |
+      The hostname of the LDAP server.
+
+      The hostname should NOT contain the LDAP scheme (e.g. ldap://) and port.
     default: "ldap.glauth.com"
     type: string

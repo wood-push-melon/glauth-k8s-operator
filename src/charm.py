@@ -48,6 +48,7 @@ from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
 from ops.pebble import ChangeError
 from utils import (
     after_config_updated,
+    block_on_missing,
     leader_unit,
     validate_container_connectivity,
     validate_database_resource,
@@ -133,7 +134,7 @@ class GLAuthCharm(CharmBase):
             )
 
     @validate_container_connectivity
-    @validate_integration_exists(DATABASE_INTEGRATION_NAME)
+    @validate_integration_exists(DATABASE_INTEGRATION_NAME, on_missing=block_on_missing)
     @validate_database_resource
     def _handle_event_update(self, event: HookEvent) -> None:
         self.unit.status = MaintenanceStatus("Configuring GLAuth container")

@@ -13,6 +13,18 @@ from tenacity import Retrying, TryAgain, wait_fixed
 logger = logging.getLogger(__name__)
 
 
+def _default_on_missing(charm: CharmBase, event: EventBase, **kwargs: Any) -> None:
+    logger.debug(f"Integration {kwargs.get('integration_name')} is missing.")
+
+
+def block_on_missing(charm: CharmBase, event: EventBase, **kwargs: Any) -> None:
+    integration_name = kwargs.get("integration_name")
+    logger.debug(f"Integration {integration_name} is missing, defer event {event}.")
+    event.defer()
+
+    charm.unit.status = BlockedStatus(f"Missing required integration {integration_name}")
+
+
 def leader_unit(func: Callable) -> Callable:
     @wraps(func)
     def wrapper(charm: CharmBase, *args: Any, **kwargs: Any) -> Optional[Any]:
@@ -41,7 +53,11 @@ def validate_container_connectivity(func: Callable) -> Callable:
     return wrapper
 
 
-def validate_integration_exists(integration_name: str) -> Callable:
+def validate_integration_exists(
+    integration_name: str, on_missing: Optional[Callable] = None
+) -> Callable:
+    on_missing_request = on_missing or _default_on_missing
+
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         def wrapper(charm: CharmBase, *args: EventBase, **kwargs: Any) -> Optional[Any]:
@@ -49,12 +65,7 @@ def validate_integration_exists(integration_name: str) -> Callable:
             logger.debug(f"Handling event: {event}")
 
             if not charm.model.relations[integration_name]:
-                logger.debug(f"Integration {integration_name} is missing, defer event {event}.")
-                event.defer()
-
-                charm.unit.status = BlockedStatus(
-                    f"Missing required integration {integration_name}"
-                )
+                on_missing_request(charm, event, integration_name=integration_name)
                 return None
 
             return func(charm, *args, **kwargs)
@@ -85,6 +96,8 @@ def validate_database_resource(func: Callable) -> Callable:
 def after_config_updated(func: Callable) -> Callable:
     @wraps(func)
     def wrapper(charm: CharmBase, *args: Any, **kwargs: Any) -> Optional[Any]:
+        charm.unit.status = WaitingStatus("Waiting for configuration to be updated.")
+
         for attempt in Retrying(
             wait=wait_fixed(3),
         ):
