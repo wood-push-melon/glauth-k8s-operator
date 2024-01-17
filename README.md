@@ -6,6 +6,9 @@
 ![Ubuntu](https://img.shields.io/badge/Ubuntu-22.04-E95420?label=Ubuntu&logo=ubuntu&logoColor=white)
 [![License](https://img.shields.io/github/license/canonical/glauth-k8s-operator?label=License)](https://github.com/canonical/glauth-k8s-operator/blob/main/LICENSE)
 
+[![Continuous Integration Status](https://github.com/canonical/glauth-k8s-operator/actions/workflows/on_push.yaml/badge.svg?branch=main)](https://github.com/canonical/glauth-k8s-operator/actions?query=branch%3Amain)
+[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
+
 This repository holds the Juju Kubernetes charmed operator
 for [GLAuth](https://github.com/glauth/glauth), an open-sourced LDAP server.
 
@@ -29,15 +32,52 @@ $ juju integrate glauth-k8s postgresql-k8s
 
 ## Integrations
 
-TBD.
+### `postgresql_client` Integration
+
+The `glauth-k8s` charmed operator requires the integration with the
+`postgres-k8s` charmed operator following the [`postgresql_client` interface
+protocol](https://github.com/canonical/charm-relation-interfaces/tree/main/interfaces/postgresql_client/v0).
+
+```shell
+$ juju integrate glauth-k8s postgresql-k8s
+```
+
+### `ldap` Integration
+
+The `glauth-k8s` charmed operator offers the `ldap` integration with any
+LDAP client charmed operator following
+the [`ldap` interface protocol](https://github.com/canonical/charm-relation-interfaces/tree/main/interfaces/ldap/v0).
+
+```shell
+$ juju integrate <ldap-client-charm>:ldap glauth-k8s:ldap
+```
+
+### `glauth_auxiliary` Integration
+
+The `glauth-k8s` charmed operator provides the `glauth_auxiliary`
+integration with
+the [`glauth-utils` charmed operator](https://github.com/canonical/glauth-utils)
+to deliver necessary auxiliary configurations.
+
+```shell
+$ juju integrate glauth-k8s glauth-utils
+```
 
 ## Configurations
 
-TBD.
+The `glauth-k8s` charmed operator offers the following charm configuration
+options.
 
-## Actions
+| Charm Config Option | Description                                                      | Example                                              |
+|:-------------------:|------------------------------------------------------------------|------------------------------------------------------|
+|      `base_dn`      | The portion of the DIT in which to search for matching entries   | `juju config <charm-app> base-dn="dc=glauth,dc=com"` |
+|     `hostname`      | The hostname of the LDAP server in `glauth-k8s` charmed operator | `juju config <charm-app> hostname="ldap.glauth.com"` |
 
-TBD.
+> ⚠️ **NOTE**
+>
+> - The `hostname` should **NOT** contain the ldap scheme (e.g. `ldap://`) and
+> port.
+> - Please refer to the `config.yaml` for more details about the configurations.
 
 ## Contributing
 

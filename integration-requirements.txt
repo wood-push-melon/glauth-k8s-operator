@@ -1,6 +1,4 @@
-protobuf~=3.20.1
-pytest
-juju
-pytest-operator
-requests
 -r requirements.txt
+juju
+pytest
+pytest-operator
