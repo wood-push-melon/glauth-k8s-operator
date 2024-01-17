@@ -1,13 +1,15 @@
 # Copyright 2023 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-from unittest.mock import MagicMock, sentinel
+from io import StringIO
+from unittest.mock import MagicMock, PropertyMock, patch, sentinel
 
 from constants import DATABASE_INTEGRATION_NAME, WORKLOAD_CONTAINER
 from ops.charm import CharmBase, HookEvent
 from ops.model import ActiveStatus, BlockedStatus, WaitingStatus
 from ops.testing import Harness
 from utils import (
+    after_config_updated,
     block_on_missing,
     leader_unit,
     validate_container_connectivity,
@@ -104,3 +106,20 @@ class TestUtils:
 
         assert wrapped(harness.charm, mocked_hook_event) is None
         assert isinstance(harness.model.unit.status, WaitingStatus)
+
+    @patch("ops.model.Container.pull", return_value=StringIO("abc"))
+    @patch("charm.ConfigFile.content", new_callable=PropertyMock, return_value="abc")
+    def test_after_config_updated(
+        self,
+        mocked_container_pull: MagicMock,
+        mocked_configfile_content: MagicMock,
+        harness: Harness,
+        mocked_hook_event: MagicMock,
+    ) -> None:
+        @after_config_updated
+        def wrapped(charm: CharmBase, event: HookEvent) -> sentinel:
+            charm.unit.status = ActiveStatus()
+            return sentinel
+
+        assert wrapped(harness.charm, mocked_hook_event) is sentinel
+        assert isinstance(harness.model.unit.status, ActiveStatus)

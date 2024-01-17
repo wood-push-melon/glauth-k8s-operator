@@ -49,7 +49,11 @@ provides:
     description: |
       Provides auxiliary data for glauth-utils charmed operator.
     interface: glauth_auxiliary
-  certificates-transfer:
+  send-ca-cert:
     description: |
       Transfer certificates to client charmed operators.
     interface: certificate_transfer
+
+peers:
+  glauth-peers:
+    interface: glauth_peers

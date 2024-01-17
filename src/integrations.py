@@ -1,7 +1,7 @@
 import hashlib
-import json
 import logging
 import subprocess
+from contextlib import suppress
 from dataclasses import dataclass
 from secrets import token_bytes
 from typing import Optional
@@ -11,7 +11,7 @@ from charms.certificate_transfer_interface.v0.certificate_transfer import (
 )
 from charms.glauth_k8s.v0.ldap import LdapProviderBaseData, LdapProviderData
 from charms.glauth_utils.v0.glauth_auxiliary import AuxiliaryData
-from charms.observability_libs.v1.cert_handler import CertHandler
+from charms.observability_libs.v0.cert_handler import CertHandler
 from configs import DatabaseConfig
 from constants import (
     CERTIFICATE_FILE,
@@ -24,7 +24,9 @@ from constants import (
     SERVER_KEY,
 )
 from database import Capability, Group, Operation, User
+from exceptions import CertificatesError
 from ops.charm import CharmBase
+from ops.pebble import PathError
 from tenacity import (
     Retrying,
     retry_if_exception_type,
@@ -137,25 +139,26 @@ class CertificatesIntegration:
         self.cert_handler = CertHandler(
             charm,
             key="glauth-server-cert",
+            peer_relation_name="glauth-peers",
             cert_subject=hostname,
-            sans=[hostname],
+            extra_sans_dns=[hostname],
         )
 
     @property
     def _ca_cert(self) -> Optional[str]:
-        return self.cert_handler.ca_cert
+        return self.cert_handler.ca
 
     @property
     def _server_key(self) -> Optional[str]:
-        return self.cert_handler.server_cert
+        return self.cert_handler.key
 
     @property
     def _server_cert(self) -> Optional[str]:
-        return self.cert_handler.server_cert
+        return self.cert_handler.cert
 
     @property
     def _ca_chain(self) -> list[str]:
-        return json.loads(self.cert_handler.chain or "[]")
+        return self.cert_handler.chain
 
     @property
     def cert_data(self) -> CertificateData:
@@ -177,15 +180,15 @@ class CertificatesIntegration:
             return
 
         self._prepare_certificates()
-        self._add_certificates()
+        self._push_certificates()
 
     def certs_ready(self) -> bool:
         return all((self._ca_cert, self._ca_chain, self._server_key, self._server_cert))
 
     def _prepare_certificates(self) -> None:
-        SERVER_CA_CERT.write_text(self.cert_handler.ca_cert)  # type: ignore[arg-type]
-        SERVER_KEY.write_text(self.cert_handler.private_key)  # type: ignore[arg-type]
-        SERVER_CERT.write_text(self.cert_handler.server_cert)  # type: ignore[arg-type]
+        SERVER_CA_CERT.write_text(self._ca_cert)  # type: ignore[arg-type]
+        SERVER_KEY.write_text(self._server_key)  # type: ignore[arg-type]
+        SERVER_CERT.write_text(self._server_cert)  # type: ignore[arg-type]
 
         try:
             for attempt in Retrying(
@@ -203,18 +206,18 @@ class CertificatesIntegration:
                     )
         except subprocess.CalledProcessError as e:
             logger.error(f"{e.stderr}")
+            raise CertificatesError("Update the TLS certificates failed.")
 
-    def _add_certificates(self) -> None:
+    def _push_certificates(self) -> None:
         self._container.push(CERTIFICATE_FILE, CERTIFICATE_FILE.read_text(), make_dirs=True)
         self._container.push(SERVER_CA_CERT, self._ca_cert, make_dirs=True)
         self._container.push(SERVER_KEY, self._server_key, make_dirs=True)
         self._container.push(SERVER_CERT, self._server_cert, make_dirs=True)
 
     def _remove_certificates(self) -> None:
-        self._container.remove(CERTIFICATE_FILE)
-        self._container.remove_path(SERVER_CA_CERT)
-        self._container.remove_path(SERVER_KEY)
-        self._container.remove_path(SERVER_CERT)
+        for file in (CERTIFICATE_FILE, SERVER_CA_CERT, SERVER_KEY, SERVER_CERT):
+            with suppress(PathError):
+                self._container.remove_path(file)
 
 
 class CertificatesTransferIntegration:

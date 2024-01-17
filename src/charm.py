@@ -18,8 +18,8 @@ from charms.glauth_k8s.v0.ldap import LdapProvider, LdapRequestedEvent
 from charms.glauth_utils.v0.glauth_auxiliary import AuxiliaryProvider, AuxiliaryRequestedEvent
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.loki_k8s.v0.loki_push_api import LogProxyConsumer, PromtailDigestError
+from charms.observability_libs.v0.cert_handler import CertChanged
 from charms.observability_libs.v0.kubernetes_service_patch import KubernetesServicePatch
-from charms.observability_libs.v1.cert_handler import CertChanged
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from configs import ConfigFile, DatabaseConfig, pebble_layer
 from constants import (
@@ -34,6 +34,7 @@ from constants import (
     PROMETHEUS_SCRAPE_INTEGRATION_NAME,
     WORKLOAD_CONTAINER,
 )
+from exceptions import CertificatesError
 from integrations import (
     AuxiliaryIntegration,
     CertificatesIntegration,
@@ -259,7 +260,14 @@ class GLAuthCharm(CharmBase):
 
     @validate_container_connectivity
     def _on_cert_changed(self, event: CertChanged) -> None:
-        self._certs_integration.update_certificates()
+        try:
+            self._certs_integration.update_certificates()
+        except CertificatesError:
+            self.unit.status = BlockedStatus(
+                "Failed to update the TLS certificates, please check the logs"
+            )
+            return
+
         self._certs_transfer_integration.transfer_certificates(
             self._certs_integration.cert_data,
         )
