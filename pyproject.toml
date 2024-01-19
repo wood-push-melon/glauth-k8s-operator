@@ -44,8 +44,9 @@ extend-ignore = [
     "D409",
     "D413",
 ]
-ignore = ["D100", "D101", "D102", "D103", "D105", "D107", "E501", "N818"]
+include = ["pyproject.toml", "src/**/*.py", "tests/**/*.py", "lib/charms/glauth_k8s/**/.py"]
 extend-exclude = ["__pycache__", "*.egg_info"]
+ignore = ["D100", "D101", "D102", "D103", "D105", "D107", "E501", "N818"]
 per-file-ignores = {"tests/*" = ["D100","D101","D102","D103","D104"]}
 
 [tool.ruff.mccabe]

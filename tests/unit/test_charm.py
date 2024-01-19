@@ -1,10 +1,16 @@
 # Copyright 2023 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
+from conftest import (
+    LDAP_AUXILIARY_APP,
+    LDAP_CLIENT_APP,
+    LDAP_PROVIDER_DATA,
+)
 from constants import WORKLOAD_CONTAINER, WORKLOAD_SERVICE
+from exceptions import CertificatesError
 from kubernetes_resource import KubernetesResourceError
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
 from ops.testing import Harness
@@ -125,3 +131,102 @@ class TestConfigChangedEvent:
         service = container.get_service(WORKLOAD_SERVICE)
         assert service.is_running()
         assert isinstance(harness.model.unit.status, ActiveStatus)
+
+
+class TestLdapRequestedEvent:
+    def test_when_database_not_created(
+        self, harness: Harness, database_relation: int, ldap_relation_data: MagicMock
+    ) -> None:
+        assert isinstance(harness.model.unit.status, WaitingStatus)
+
+    def test_when_requirer_data_not_ready(
+        self,
+        harness: Harness,
+        database_resource: MagicMock,
+        ldap_relation: int,
+    ) -> None:
+        assert not harness.get_relation_data(ldap_relation, LDAP_CLIENT_APP)
+
+    def test_when_ldap_requested(
+        self,
+        harness: Harness,
+        database_resource: MagicMock,
+        mocked_ldap_integration: MagicMock,
+        ldap_relation: int,
+        ldap_relation_data: MagicMock,
+    ) -> None:
+        assert isinstance(harness.model.unit.status, ActiveStatus)
+        assert LDAP_PROVIDER_DATA.model_dump() == harness.get_relation_data(
+            ldap_relation, harness.model.app.name
+        )
+
+
+class TestLdapAuxiliaryRequestedEvent:
+    def test_when_database_not_created(
+        self, harness: Harness, database_relation: int, ldap_auxiliary_relation: int
+    ) -> None:
+        assert isinstance(harness.model.unit.status, WaitingStatus)
+
+    def test_on_ldap_auxiliary_requested(
+        self,
+        harness: Harness,
+        database_resource: MagicMock,
+        ldap_auxiliary_relation: int,
+        ldap_auxiliary_relation_data: MagicMock,
+    ) -> None:
+        assert isinstance(harness.model.unit.status, ActiveStatus)
+        assert ldap_auxiliary_relation_data == harness.get_relation_data(
+            ldap_auxiliary_relation, LDAP_AUXILIARY_APP
+        )
+
+
+class TestCertChangedEvent:
+    def test_when_container_not_connected(self, harness: Harness) -> None:
+        harness.set_can_connect(WORKLOAD_CONTAINER, False)
+        harness.charm._certs_integration.cert_handler.on.cert_changed.emit()
+
+        assert isinstance(harness.model.unit.status, WaitingStatus)
+
+    @patch(
+        "charm.CertificatesIntegration.update_certificates",
+        side_effect=CertificatesError("Failed to update certificates."),
+    )
+    def test_when_update_certificates_failed(
+        self,
+        mocked_update_certificates: MagicMock,
+        harness: Harness,
+        mocked_certificates_integration: MagicMock,
+        mocked_certificates_transfer_integration: MagicMock,
+    ) -> None:
+        harness.charm._certs_integration.cert_handler.on.cert_changed.emit()
+
+        mocked_certificates_integration.update_certificates.assert_called_once()
+        mocked_certificates_transfer_integration.transfer_certificates.assert_not_called()
+
+    def test_on_cert_changed(
+        self,
+        harness: Harness,
+        mocked_certificates_integration: MagicMock,
+        mocked_certificates_transfer_integration: MagicMock,
+    ) -> None:
+        harness.charm._certs_integration.cert_handler.on.cert_changed.emit()
+
+        mocked_certificates_integration.update_certificates.assert_called_once()
+        mocked_certificates_transfer_integration.transfer_certificates.assert_called_once()
+
+
+class TestCertificatesTransferEvent:
+    def test_when_certificate_data_not_ready(
+        self,
+        mocked_certificates_transfer_integration: MagicMock,
+        certificates_transfer_relation: int,
+    ) -> None:
+        mocked_certificates_transfer_integration.transfer_certificates.assert_not_called()
+
+    def test_certificates_transfer_relation_joined(
+        self,
+        mocked_certificates_integration: MagicMock,
+        mocked_certificates_transfer_integration: MagicMock,
+        certificates_transfer_relation: int,
+    ) -> None:
+        mocked_certificates_transfer_integration.transfer_certificates.assert_called_once()

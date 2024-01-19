@@ -26,12 +26,17 @@ requires:
     limit: 1
   logging:
     interface: loki_push_api
+    optional: true
+  certificates:
+    interface: tls-certificates
+    limit: 1
+    optional: true
 
 provides:
   metrics-endpoint:
-    interface: prometheus_scrape
     description: |
-      Provides application metrics to COS Prometheus instance
+      Provides application metrics to COS Prometheus instance.
+    interface: prometheus_scrape
   grafana-dashboard:
     description: |
       Forwards the built-in grafana dashboard(s) for monitoring GLAuth.
@@ -42,5 +47,13 @@ provides:
     interface: ldap
   glauth-auxiliary:
     description: |
-      Provides auxiliary data for glauth-utils charmed operator
+      Provides auxiliary data for glauth-utils charmed operator.
     interface: glauth_auxiliary
+  send-ca-cert:
+    description: |
+      Transfer certificates to client charmed operators.
+    interface: certificate_transfer
+
+peers:
+  glauth-peers:
+    interface: glauth_peers

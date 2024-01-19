@@ -1,7 +1,12 @@
 from dataclasses import asdict, dataclass
 from typing import Any, Optional
 
-from constants import GLAUTH_COMMANDS, LOG_FILE, POSTGRESQL_DSN_TEMPLATE, WORKLOAD_SERVICE
+from constants import (
+    GLAUTH_COMMANDS,
+    LOG_FILE,
+    POSTGRESQL_DSN_TEMPLATE,
+    WORKLOAD_SERVICE,
+)
 from jinja2 import Template
 from ops.pebble import Layer
 
