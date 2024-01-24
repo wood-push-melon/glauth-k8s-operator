@@ -31,7 +31,7 @@ class User(Base):
 
 
 class Group(Base):
-    __tablename__ = "groups"
+    __tablename__ = "ldapgroups"
 
     id = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(name="name", unique=True)

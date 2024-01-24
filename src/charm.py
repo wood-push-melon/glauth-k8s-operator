@@ -21,7 +21,7 @@ from charms.loki_k8s.v0.loki_push_api import LogProxyConsumer, PromtailDigestErr
 from charms.observability_libs.v0.cert_handler import CertChanged
 from charms.observability_libs.v0.kubernetes_service_patch import KubernetesServicePatch
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
-from configs import ConfigFile, DatabaseConfig, pebble_layer
+from configs import ConfigFile, DatabaseConfig, StartTLSConfig, pebble_layer
 from constants import (
     CERTIFICATES_TRANSFER_INTEGRATION_NAME,
     DATABASE_INTEGRATION_NAME,
@@ -58,6 +58,7 @@ from ops.pebble import ChangeError
 from utils import (
     after_config_updated,
     block_on_missing,
+    demand_tls_certificates,
     leader_unit,
     validate_container_connectivity,
     validate_database_resource,
@@ -140,7 +141,10 @@ class GLAuthCharm(CharmBase):
             self._on_promtail_error,
         )
 
-        self.config_file = ConfigFile(base_dn=self.config.get("base_dn"))
+        self.config_file = ConfigFile(
+            base_dn=self.config.get("base_dn"),
+            starttls_config=StartTLSConfig.load(self.config),
+        )
         self._ldap_integration = LdapIntegration(self)
         self._auxiliary_integration = AuxiliaryIntegration(self)
 
@@ -155,6 +159,7 @@ class GLAuthCharm(CharmBase):
             )
 
     @validate_container_connectivity
+    @demand_tls_certificates
     @validate_integration_exists(DATABASE_INTEGRATION_NAME, on_missing=block_on_missing)
     @validate_database_resource
     def _handle_event_update(self, event: HookEvent) -> None:
@@ -207,13 +212,7 @@ class GLAuthCharm(CharmBase):
         self._configmap.delete()
 
     def _on_database_created(self, event: DatabaseCreatedEvent) -> None:
-        self.config_file.database_config = DatabaseConfig.load(self.database_requirer)
-        self._update_glauth_config()
-
-        self._container.add_layer(WORKLOAD_CONTAINER, pebble_layer, combine=True)
-        self._restart_glauth_service()
-        self.unit.status = ActiveStatus()
-
+        self._handle_event_update(event)
         self.auxiliary_provider.update_relation_app_data(
             data=self._auxiliary_integration.auxiliary_data,
         )
@@ -268,6 +267,7 @@ class GLAuthCharm(CharmBase):
             )
             return
 
+        self._handle_event_update(event)
         self._certs_transfer_integration.transfer_certificates(
             self._certs_integration.cert_data,
         )

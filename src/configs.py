@@ -1,10 +1,13 @@
 from dataclasses import asdict, dataclass
-from typing import Any, Optional
+from pathlib import Path
+from typing import Any, Mapping, Optional
 
 from constants import (
     GLAUTH_COMMANDS,
     LOG_FILE,
     POSTGRESQL_DSN_TEMPLATE,
+    SERVER_CERT,
+    SERVER_KEY,
     WORKLOAD_SERVICE,
 )
 from jinja2 import Template
@@ -44,9 +47,23 @@ class DatabaseConfig:
 
 
 @dataclass
+class StartTLSConfig:
+    enabled: bool = True
+    tls_key: Path = SERVER_KEY
+    tls_cert: Path = SERVER_CERT
+
+    @classmethod
+    def load(cls, config: Mapping[str, Any]) -> "StartTLSConfig":
+        return StartTLSConfig(
+            enabled=config.get("starttls_enabled", True),
+        )
+
+
+@dataclass
 class ConfigFile:
     base_dn: Optional[str] = None
     database_config: Optional[DatabaseConfig] = None
+    starttls_config: Optional[StartTLSConfig] = None
 
     @property
     def content(self) -> str:
@@ -57,9 +74,11 @@ class ConfigFile:
             template = Template(file.read())
 
         database_config = self.database_config or DatabaseConfig()
+        starttls_config = self.starttls_config or StartTLSConfig()
         rendered = template.render(
             base_dn=self.base_dn,
             database=asdict(database_config),
+            starttls=asdict(starttls_config),
         )
         return rendered
 

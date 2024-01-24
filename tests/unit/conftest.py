@@ -119,6 +119,11 @@ def mocked_certificates_transfer_integration(mocker: MockerFixture, harness: Har
 
 
 @pytest.fixture
+def mocked_tls_certificates(mocker: MockerFixture, harness: Harness) -> MagicMock:
+    return mocker.patch("ops.model.Container.exists", return_value=True)
+
+
+@pytest.fixture
 def database_relation(harness: Harness) -> int:
     relation_id = harness.add_relation(DATABASE_INTEGRATION_NAME, DB_APP)
     harness.add_relation_unit(relation_id, f"{DB_APP}/0")

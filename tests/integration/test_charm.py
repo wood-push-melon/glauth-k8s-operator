@@ -30,6 +30,7 @@ async def test_build_and_deploy(ops_test: OpsTest) -> None:
         str(charm_path),
         resources={"oci-image": GLAUTH_IMAGE},
         application_name=GLAUTH_APP,
+        config={"starttls_enabled": False},
         trust=True,
         series="jammy",
     )

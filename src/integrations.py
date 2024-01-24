@@ -86,10 +86,15 @@ class LdapIntegration:
         return self._charm.config.get("base_dn")
 
     @property
+    def starttls_enabled(self) -> bool:
+        return self._charm.config.get("starttls_enabled", True)
+
+    @property
     def provider_base_data(self) -> LdapProviderBaseData:
         return LdapProviderBaseData(
             url=self.ldap_url,
             base_dn=self.base_dn,
+            starttls=self.starttls_enabled,
         )
 
     @property
@@ -103,7 +108,7 @@ class LdapIntegration:
             bind_dn=f"cn={self._bind_account.cn},ou={self._bind_account.ou},{self.base_dn}",
             bind_password_secret=self._bind_account.password or "",
             auth_method="simple",
-            starttls=True,
+            starttls=self.starttls_enabled,
         )
 
 

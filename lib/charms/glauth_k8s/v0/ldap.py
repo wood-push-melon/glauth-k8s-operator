@@ -151,7 +151,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 1
+LIBPATCH = 2
 
 PYDEPS = ["pydantic~=2.5.3"]
 
@@ -187,6 +187,7 @@ class LdapProviderBaseData(BaseModel):
 
     url: str
     base_dn: str
+    starttls: StrictBool
 
     @field_validator("url")
     @classmethod
@@ -195,13 +196,6 @@ class LdapProviderBaseData(BaseModel):
             raise ValidationError("Invalid LDAP URL scheme.")
 
         return v
-
-
-class LdapProviderData(LdapProviderBaseData):
-    bind_dn: str
-    bind_password_secret: str
-    auth_method: Literal["simple"]
-    starttls: StrictBool
 
     @field_validator("starttls", mode="before")
     @classmethod
@@ -214,6 +208,12 @@ class LdapProviderData(LdapProviderBaseData):
     @field_serializer("starttls")
     def serialize_bool(self, starttls: bool) -> str:
         return str(starttls)
+
+
+class LdapProviderData(LdapProviderBaseData):
+    bind_dn: str
+    bind_password_secret: str
+    auth_method: Literal["simple"]
 
 
 class LdapRequirerData(BaseModel):
