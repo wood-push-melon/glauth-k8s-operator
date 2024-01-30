@@ -17,3 +17,8 @@ options:
       The hostname should NOT contain the LDAP scheme (e.g. ldap://) and port.
     default: "ldap.glauth.com"
     type: string
+  starttls_enabled:
+    description: |
+      Enable the StartTLS support or not. DO NOT TURN IT OFF IN PRODUCTION.
+    default: true
+    type: boolean

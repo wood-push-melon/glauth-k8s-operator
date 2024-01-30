@@ -74,15 +74,29 @@ class TestPebbleReadyEvent:
 
         assert isinstance(harness.model.unit.status, BlockedStatus)
 
-    def test_when_database_not_created(self, harness: Harness, database_relation: int) -> None:
+    def test_when_tls_certificates_not_exist(self, harness: Harness) -> None:
         container = harness.model.unit.get_container(WORKLOAD_CONTAINER)
+        harness.charm.on.glauth_pebble_ready.emit(container)
 
+        assert isinstance(harness.model.unit.status, BlockedStatus)
+
+    def test_when_database_not_created(
+        self,
+        harness: Harness,
+        database_relation: int,
+        mocked_tls_certificates: MagicMock,
+    ) -> None:
+        container = harness.model.unit.get_container(WORKLOAD_CONTAINER)
         harness.charm.on.glauth_pebble_ready.emit(container)
 
         assert isinstance(harness.model.unit.status, WaitingStatus)
 
     def test_pebble_ready_event(
-        self, harness: Harness, database_relation: int, database_resource: MagicMock
+        self,
+        harness: Harness,
+        database_relation: int,
+        database_resource: MagicMock,
+        mocked_tls_certificates: MagicMock,
     ) -> None:
         container = harness.model.unit.get_container(WORKLOAD_CONTAINER)
 
@@ -95,7 +109,11 @@ class TestPebbleReadyEvent:
 
 class TestDatabaseCreatedEvent:
     def test_database_created_event(
-        self, harness: Harness, database_relation: int, database_resource: MagicMock
+        self,
+        harness: Harness,
+        mocked_tls_certificates: MagicMock,
+        database_relation: int,
+        database_resource: MagicMock,
     ) -> None:
         container = harness.model.unit.get_container(WORKLOAD_CONTAINER)
 
@@ -111,18 +129,39 @@ class TestConfigChangedEvent:
 
         assert isinstance(harness.model.unit.status, WaitingStatus)
 
-    def test_when_missing_database_relation(self, harness: Harness) -> None:
+    def test_when_tls_certificates_not_exist(
+        self,
+        harness: Harness,
+        database_relation: MagicMock,
+        database_resource: MagicMock,
+    ) -> None:
         harness.charm.on.config_changed.emit()
 
         assert isinstance(harness.model.unit.status, BlockedStatus)
 
-    def test_when_database_not_created(self, harness: Harness, database_relation: int) -> None:
+    def test_when_missing_database_relation(
+        self, harness: Harness, mocked_tls_certificates: MagicMock
+    ) -> None:
+        harness.charm.on.config_changed.emit()
+
+        assert isinstance(harness.model.unit.status, BlockedStatus)
+
+    def test_when_database_not_created(
+        self,
+        harness: Harness,
+        database_relation: int,
+        mocked_tls_certificates: MagicMock,
+    ) -> None:
         harness.charm.on.config_changed.emit()
 
         assert isinstance(harness.model.unit.status, WaitingStatus)
 
     def test_on_config_changed_event(
-        self, harness: Harness, database_relation: int, database_resource: MagicMock
+        self,
+        harness: Harness,
+        database_relation: int,
+        database_resource: MagicMock,
+        mocked_tls_certificates: MagicMock,
     ) -> None:
         container = harness.model.unit.get_container(WORKLOAD_CONTAINER)
 
@@ -150,6 +189,7 @@ class TestLdapRequestedEvent:
     def test_when_ldap_requested(
         self,
         harness: Harness,
+        mocked_tls_certificates: MagicMock,
         database_resource: MagicMock,
         mocked_ldap_integration: MagicMock,
         ldap_relation: int,
@@ -170,6 +210,7 @@ class TestLdapAuxiliaryRequestedEvent:
     def test_on_ldap_auxiliary_requested(
         self,
         harness: Harness,
+        mocked_tls_certificates: MagicMock,
         database_resource: MagicMock,
         ldap_auxiliary_relation: int,
         ldap_auxiliary_relation_data: MagicMock,
@@ -189,7 +230,7 @@ class TestCertChangedEvent:
 
     @patch(
         "charm.CertificatesIntegration.update_certificates",
-        side_effect=CertificatesError("Failed to update certificates."),
+        side_effect=CertificatesError,
     )
     def test_when_update_certificates_failed(
         self,

@@ -11,6 +11,7 @@ from ops.testing import Harness
 from utils import (
     after_config_updated,
     block_on_missing,
+    demand_tls_certificates,
     leader_unit,
     validate_container_connectivity,
     validate_database_resource,
@@ -106,6 +107,33 @@ class TestUtils:
 
         assert wrapped(harness.charm, mocked_hook_event) is None
         assert isinstance(harness.model.unit.status, WaitingStatus)
+
+    def test_tls_certificates_not_exist(
+        self,
+        mocked_tls_certificates: MagicMock,
+        harness: Harness,
+        mocked_hook_event: MagicMock,
+    ) -> None:
+        @demand_tls_certificates
+        def wrapped(charm: CharmBase, event: HookEvent) -> sentinel:
+            charm.unit.status = ActiveStatus()
+            return sentinel
+
+        mocked_tls_certificates.return_value = False
+        assert wrapped(harness.charm, mocked_hook_event) is None
+        assert isinstance(harness.model.unit.status, BlockedStatus)
+
+    def test_demand_tls_certificates(
+        self,
+        harness: Harness,
+        mocked_hook_event: MagicMock,
+        mocked_tls_certificates: MagicMock,
+    ) -> None:
+        @demand_tls_certificates
+        def wrapped(charm: CharmBase, event: HookEvent) -> sentinel:
+            return sentinel
+
+        assert wrapped(harness.charm, mocked_hook_event) is sentinel
 
     @patch("ops.model.Container.pull", return_value=StringIO("abc"))
     @patch("charm.ConfigFile.content", new_callable=PropertyMock, return_value="abc")

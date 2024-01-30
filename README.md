@@ -32,16 +32,6 @@ $ juju integrate glauth-k8s postgresql-k8s
 
 ## Integrations
 
-### `postgresql_client` Integration
-
-The `glauth-k8s` charmed operator requires the integration with the
-`postgres-k8s` charmed operator following the [`postgresql_client` interface
-protocol](https://github.com/canonical/charm-relation-interfaces/tree/main/interfaces/postgresql_client/v0).
-
-```shell
-$ juju integrate glauth-k8s postgresql-k8s
-```
-
 ### `ldap` Integration
 
 The `glauth-k8s` charmed operator offers the `ldap` integration with any
@@ -60,7 +50,38 @@ the [`glauth-utils` charmed operator](https://github.com/canonical/glauth-utils)
 to deliver necessary auxiliary configurations.
 
 ```shell
-$ juju integrate glauth-k8s glauth-utils
+$ juju integrate glauth-utils glauth-k8s
+```
+
+### `certificate_transfer` Integration
+
+The `glauth-k8s` charmed operator provides the `certificate_transfer`
+integration with any charmed operator following the [`certificate_transfer`
+interface protocol](https://github.com/canonical/charm-relation-interfaces/tree/main/interfaces/certificate_transfer/v0).
+
+```shell
+$ juju integrate <client-charm> glauth-k8s
+```
+
+### `postgresql_client` Integration
+
+The `glauth-k8s` charmed operator requires the integration with the
+`postgres-k8s` charmed operator following the [`postgresql_client` interface
+protocol](https://github.com/canonical/charm-relation-interfaces/tree/main/interfaces/postgresql_client/v0).
+
+```shell
+$ juju integrate glauth-k8s postgresql-k8s
+```
+
+### `tls_certificates` Integration
+
+The `glauth-k8s` charmed operator requires the `tls-certificates`
+integration with any charmed operator following the [`tls_certificates`
+interface protocol](https://github.com/canonical/charm-relation-interfaces/tree/main/interfaces/tls_certificates/v0).
+Take the `self-signed-certificates-operator` as an example:
+
+```shell
+$ juju integrate glauth-k8s self-signed-certificates
 ```
 
 ## Configurations
@@ -72,11 +93,12 @@ options.
 |:-------------------:|------------------------------------------------------------------|------------------------------------------------------|
 |      `base_dn`      | The portion of the DIT in which to search for matching entries   | `juju config <charm-app> base-dn="dc=glauth,dc=com"` |
 |     `hostname`      | The hostname of the LDAP server in `glauth-k8s` charmed operator | `juju config <charm-app> hostname="ldap.glauth.com"` |
+| `starttls_enabled`  | The switch to enable/disable StartTLS support                    | `juju config <charm-app> starttls_enabled=true`      |
 
 > ⚠️ **NOTE**
 >
 > - The `hostname` should **NOT** contain the ldap scheme (e.g. `ldap://`) and
-> port.
+    port.
 > - Please refer to the `config.yaml` for more details about the configurations.
 
 ## Contributing
