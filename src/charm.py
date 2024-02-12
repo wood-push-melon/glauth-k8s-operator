@@ -238,6 +238,7 @@ class GLAuthCharm(CharmBase):
 
         self._handle_event_update(event)
 
+    @leader_unit
     @validate_database_resource
     def _on_ldap_requested(self, event: LdapRequestedEvent) -> None:
         if not (requirer_data := event.data):

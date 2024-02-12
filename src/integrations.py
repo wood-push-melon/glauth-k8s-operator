@@ -1,3 +1,6 @@
+# Copyright 2024 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 import hashlib
 import logging
 import subprocess
@@ -39,9 +42,9 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class BindAccount:
-    cn: Optional[str] = None
-    ou: Optional[str] = None
-    password: Optional[str] = None
+    cn: str
+    ou: str
+    password: str
 
 
 def _create_bind_account(dsn: str, user_name: str, group_name: str) -> BindAccount:
@@ -106,7 +109,7 @@ class LdapIntegration:
             url=self.ldap_url,
             base_dn=self.base_dn,
             bind_dn=f"cn={self._bind_account.cn},ou={self._bind_account.ou},{self.base_dn}",
-            bind_password_secret=self._bind_account.password or "",
+            bind_password_secret=self._bind_account.password,
             auth_method="simple",
             starttls=self.starttls_enabled,
         )
@@ -146,7 +149,10 @@ class CertificatesIntegration:
             key="glauth-server-cert",
             peer_relation_name="glauth-peers",
             cert_subject=hostname,
-            extra_sans_dns=[hostname],
+            extra_sans_dns=[
+                hostname,
+                f"{charm.app.name}.{charm.model.name}.svc.cluster.local",
+            ],
         )
 
     @property

@@ -123,8 +123,10 @@ LDAP related information in order to connect and authenticate to the LDAP server
 """
 
 from functools import wraps
+from string import Template
 from typing import Any, Callable, Literal, Optional, Union
 
+import ops
 from ops.charm import (
     CharmBase,
     RelationBrokenEvent,
@@ -133,7 +135,7 @@ from ops.charm import (
     RelationEvent,
 )
 from ops.framework import EventSource, Object, ObjectEvents
-from ops.model import Relation
+from ops.model import Relation, SecretNotFoundError
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -151,11 +153,12 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 2
+LIBPATCH = 3
 
 PYDEPS = ["pydantic~=2.5.3"]
 
 DEFAULT_RELATION_NAME = "ldap"
+BIND_ACCOUNT_SECRET_LABEL_TEMPLATE = Template("relation-$relation_id-bind-account-secret")
 
 
 def leader_unit(func: Callable) -> Callable:
@@ -180,6 +183,36 @@ def _update_relation_app_databag(
 
     data = {k: str(v) if v else "" for k, v in data.items()}
     relation.data[ldap.app].update(data)
+
+
+class Secret:
+    def __init__(self, secret: ops.Secret = None) -> None:
+        self._secret: ops.Secret = secret
+
+    @property
+    def uri(self) -> str:
+        return self._secret.id if self._secret else ""
+
+    @classmethod
+    def load(
+        cls,
+        charm: CharmBase,
+        label: str,
+        *,
+        content: Optional[dict[str, str]] = None,
+    ) -> "Secret":
+        try:
+            secret = charm.model.get_secret(label=label)
+        except SecretNotFoundError:
+            secret = charm.app.add_secret(label=label, content=content)
+
+        return Secret(secret)
+
+    def grant(self, relation: Relation) -> None:
+        self._secret.grant(relation)
+
+    def remove(self) -> None:
+        self._secret.remove_all_revisions()
 
 
 class LdapProviderBaseData(BaseModel):
@@ -268,11 +301,24 @@ class LdapProvider(Object):
             self.charm.on[self._relation_name].relation_changed,
             self._on_relation_changed,
         )
+        self.framework.observe(
+            self.charm.on[self._relation_name].relation_broken,
+            self._on_relation_broken,
+        )
 
     @leader_unit
     def _on_relation_changed(self, event: RelationChangedEvent) -> None:
         """Handle the event emitted when the requirer charm provides the necessary data."""
         self.on.ldap_requested.emit(event.relation)
+
+    @leader_unit
+    def _on_relation_broken(self, event: RelationBrokenEvent) -> None:
+        """Handle the event emitted when the LDAP integration is broken."""
+        secret = Secret.load(
+            self.charm,
+            label=BIND_ACCOUNT_SECRET_LABEL_TEMPLATE.substitute(relation_id=event.relation.id),
+        )
+        secret.remove()
 
     def update_relations_app_data(
         self, /, data: Optional[LdapProviderBaseData] = None, relation_id: Optional[int] = None
@@ -286,9 +332,16 @@ class LdapProvider(Object):
 
         if relation_id is not None:
             relations = [relation for relation in relations if relation.id == relation_id]
+            secret = Secret.load(
+                self.charm,
+                BIND_ACCOUNT_SECRET_LABEL_TEMPLATE.substitute(relation_id=relation_id),
+                content={"password": data.bind_password_secret},
+            )
+            secret.grant(relations[0])
+            data = data.model_copy(update={"bind_password_secret": secret.uri})
 
         for relation in relations:
-            _update_relation_app_databag(self.charm, relation, data.model_dump())
+            _update_relation_app_databag(self.charm, relation, data.model_dump())  # type: ignore[union-attr]
 
 
 class LdapRequirer(Object):

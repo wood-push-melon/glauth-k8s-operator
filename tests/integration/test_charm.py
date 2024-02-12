@@ -118,6 +118,7 @@ async def test_ldap_integration(
     assert ldap_integration_data["bind_dn"].startswith(
         f"cn={GLAUTH_CLIENT_APP},ou={ops_test.model_name}"
     )
+    assert ldap_integration_data["bind_password_secret"].startswith("secret:")
 
 
 async def test_certificate_transfer_integration(
