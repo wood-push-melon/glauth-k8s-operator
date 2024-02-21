@@ -23,6 +23,7 @@ from charms.observability_libs.v0.kubernetes_service_patch import KubernetesServ
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from configs import ConfigFile, DatabaseConfig, StartTLSConfig, pebble_layer
 from constants import (
+    CERTIFICATES_INTEGRATION_NAME,
     CERTIFICATES_TRANSFER_INTEGRATION_NAME,
     DATABASE_INTEGRATION_NAME,
     GLAUTH_CONFIG_DIR,
@@ -57,12 +58,13 @@ from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
 from ops.pebble import ChangeError
 from utils import (
     after_config_updated,
-    block_on_missing,
-    demand_tls_certificates,
+    block_when,
+    container_not_connected,
+    database_not_ready,
+    integration_not_exists,
     leader_unit,
-    validate_container_connectivity,
-    validate_database_resource,
-    validate_integration_exists,
+    tls_certificates_not_ready,
+    wait_when,
 )
 
 logger = logging.getLogger(__name__)
@@ -158,10 +160,15 @@ class GLAuthCharm(CharmBase):
                 "Failed to restart the service, please check the logs"
             )
 
-    @validate_container_connectivity
-    @demand_tls_certificates
-    @validate_integration_exists(DATABASE_INTEGRATION_NAME, on_missing=block_on_missing)
-    @validate_database_resource
+    @block_when(
+        integration_not_exists(DATABASE_INTEGRATION_NAME),
+        integration_not_exists(CERTIFICATES_INTEGRATION_NAME),
+    )
+    @wait_when(
+        container_not_connected,
+        database_not_ready,
+        tls_certificates_not_ready,
+    )
     def _handle_event_update(self, event: HookEvent) -> None:
         self.unit.status = MaintenanceStatus("Configuring GLAuth container")
 
@@ -230,7 +237,7 @@ class GLAuthCharm(CharmBase):
             data=self._ldap_integration.provider_base_data
         )
 
-    @validate_container_connectivity
+    @wait_when(container_not_connected)
     def _on_pebble_ready(self, event: PebbleReadyEvent) -> None:
         if not self._container.isdir(LOG_DIR):
             self._container.make_dir(path=LOG_DIR, make_parents=True)
@@ -239,7 +246,7 @@ class GLAuthCharm(CharmBase):
         self._handle_event_update(event)
 
     @leader_unit
-    @validate_database_resource
+    @wait_when(database_not_ready)
     def _on_ldap_requested(self, event: LdapRequestedEvent) -> None:
         if not (requirer_data := event.data):
             logger.error(f"The LDAP requirer {event.app.name} does not provide necessary data.")
@@ -251,14 +258,14 @@ class GLAuthCharm(CharmBase):
             data=self._ldap_integration.provider_data,
         )
 
-    @validate_database_resource
+    @wait_when(database_not_ready)
     def _on_auxiliary_requested(self, event: AuxiliaryRequestedEvent) -> None:
         self.auxiliary_provider.update_relation_app_data(
             relation_id=event.relation.id,
             data=self._auxiliary_integration.auxiliary_data,
         )
 
-    @validate_container_connectivity
+    @wait_when(container_not_connected)
     def _on_cert_changed(self, event: CertChanged) -> None:
         try:
             self._certs_integration.update_certificates()

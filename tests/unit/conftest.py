@@ -8,6 +8,7 @@ import pytest
 from charm import GLAuthCharm
 from charms.glauth_k8s.v0.ldap import LdapProviderData
 from constants import (
+    CERTIFICATES_INTEGRATION_NAME,
     CERTIFICATES_TRANSFER_INTEGRATION_NAME,
     DATABASE_INTEGRATION_NAME,
     WORKLOAD_CONTAINER,
@@ -40,6 +41,7 @@ LDAP_AUXILIARY_RELATION_DATA = {
     "password": DB_PASSWORD,
 }
 
+CERTIFICATE_PROVIDER_APP = "self-signed-certificates"
 CERTIFICATES_TRANSFER_CLIENT_APP = "sssd"
 
 
@@ -184,6 +186,15 @@ def ldap_auxiliary_relation_data(harness: Harness, ldap_auxiliary_relation: int)
         LDAP_AUXILIARY_RELATION_DATA,
     )
     return LDAP_AUXILIARY_RELATION_DATA
+
+
+@pytest.fixture
+def certificates_relation(harness: Harness) -> int:
+    relation_id = harness.add_relation(
+        CERTIFICATES_INTEGRATION_NAME,
+        CERTIFICATE_PROVIDER_APP,
+    )
+    return relation_id
 
 
 @pytest.fixture

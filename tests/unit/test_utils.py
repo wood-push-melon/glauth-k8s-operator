@@ -10,13 +10,95 @@ from ops.model import ActiveStatus, BlockedStatus, WaitingStatus
 from ops.testing import Harness
 from utils import (
     after_config_updated,
-    block_on_missing,
-    demand_tls_certificates,
+    block_when,
+    container_not_connected,
+    database_not_ready,
+    integration_not_exists,
     leader_unit,
-    validate_container_connectivity,
-    validate_database_resource,
-    validate_integration_exists,
+    tls_certificates_not_ready,
+    wait_when,
 )
+
+
+class TestConditions:
+    def test_container_not_connected(self, harness: Harness) -> None:
+        harness.set_can_connect(WORKLOAD_CONTAINER, False)
+        res, msg = container_not_connected(harness.charm)
+
+        assert res is True and msg
+
+    def test_container_connected(self, harness: Harness) -> None:
+        res, msg = container_not_connected(harness.charm)
+
+        assert res is False and not msg
+
+    def test_integration_not_exists(self, harness: Harness) -> None:
+        condition = integration_not_exists(DATABASE_INTEGRATION_NAME)
+        res, msg = condition(harness.charm)
+
+        assert res is True and msg
+
+    def test_integration_exists(self, harness: Harness, database_relation: int) -> None:
+        condition = integration_not_exists(DATABASE_INTEGRATION_NAME)
+        res, msg = condition(harness.charm)
+
+        assert res is False and not msg
+
+    def test_tls_certificates_not_ready(self, harness: Harness) -> None:
+        res, msg = tls_certificates_not_ready(harness.charm)
+
+        assert res is True and msg
+
+    def test_tls_certificates_ready(
+        self, harness: Harness, mocked_tls_certificates: MagicMock
+    ) -> None:
+        res, msg = tls_certificates_not_ready(harness.charm)
+
+        assert res is False and not msg
+
+    def test_database_not_ready(self, harness: Harness) -> None:
+        res, msg = database_not_ready(harness.charm)
+
+        assert res is True and msg
+
+    def test_database_ready(self, harness: Harness, database_resource: MagicMock) -> None:
+        res, msg = database_not_ready(harness.charm)
+
+        assert res is False and not msg
+
+    def test_block_when(self, harness: Harness, mocked_hook_event: MagicMock) -> None:
+        harness.set_can_connect(WORKLOAD_CONTAINER, False)
+
+        @block_when(container_not_connected)
+        def wrapped(charm: CharmBase, event: HookEvent) -> sentinel:
+            return sentinel
+
+        assert wrapped(harness.charm, mocked_hook_event) is None
+        assert isinstance(harness.model.unit.status, BlockedStatus)
+
+    def test_not_block_when(self, harness: Harness, mocked_hook_event: MagicMock) -> None:
+        @block_when(container_not_connected)
+        def wrapped(charm: CharmBase, event: HookEvent) -> sentinel:
+            return sentinel
+
+        assert wrapped(harness.charm, mocked_hook_event) is sentinel
+
+    def test_wait_when(self, harness: Harness, mocked_hook_event: MagicMock) -> None:
+        harness.set_can_connect(WORKLOAD_CONTAINER, False)
+
+        @wait_when(container_not_connected)
+        def wrapped(charm: CharmBase, event: HookEvent) -> sentinel:
+            return sentinel
+
+        assert wrapped(harness.charm, mocked_hook_event) is None
+        assert isinstance(harness.model.unit.status, WaitingStatus)
+
+    def test_not_wait_when(self, harness: Harness, mocked_hook_event: MagicMock) -> None:
+        @wait_when(container_not_connected)
+        def wrapped(charm: CharmBase, event: HookEvent) -> sentinel:
+            return sentinel
+
+        assert wrapped(harness.charm, mocked_hook_event) is sentinel
 
 
 class TestUtils:
@@ -35,105 +117,6 @@ class TestUtils:
         harness.set_leader(False)
 
         assert wrapped(harness.charm) is None
-
-    def test_container_connected(self, harness: Harness, mocked_hook_event: MagicMock) -> None:
-        @validate_container_connectivity
-        def wrapped(charm: CharmBase, event: HookEvent) -> sentinel:
-            return sentinel
-
-        harness.set_can_connect(WORKLOAD_CONTAINER, True)
-
-        assert wrapped(harness.charm, mocked_hook_event) is sentinel
-
-    def test_container_not_connected(self, harness: Harness, mocked_hook_event: MagicMock) -> None:
-        @validate_container_connectivity
-        def wrapped(charm: CharmBase, event: HookEvent) -> sentinel:
-            return sentinel
-
-        harness.set_can_connect(WORKLOAD_CONTAINER, False)
-
-        assert wrapped(harness.charm, mocked_hook_event) is None
-        assert isinstance(harness.model.unit.status, WaitingStatus)
-
-    def test_when_relation_exists_with_block_request(
-        self,
-        harness: Harness,
-        database_relation: int,
-        mocked_hook_event: MagicMock,
-    ) -> None:
-        @validate_integration_exists(DATABASE_INTEGRATION_NAME, on_missing=block_on_missing)
-        def wrapped(charm: CharmBase, event: HookEvent) -> sentinel:
-            return sentinel
-
-        assert wrapped(harness.charm, mocked_hook_event) is sentinel
-
-    def test_when_relation_not_exists_with_block_request(
-        self, harness: Harness, mocked_hook_event: MagicMock
-    ) -> None:
-        @validate_integration_exists(DATABASE_INTEGRATION_NAME, on_missing=block_on_missing)
-        def wrapped(charm: CharmBase, event: HookEvent) -> sentinel:
-            return sentinel
-
-        assert wrapped(harness.charm, mocked_hook_event) is None
-        assert isinstance(harness.model.unit.status, BlockedStatus)
-
-    def test_when_relation_not_exists_without_request(
-        self, harness: Harness, mocked_hook_event: MagicMock
-    ) -> None:
-        harness.model.unit.status = ActiveStatus()
-
-        @validate_integration_exists(DATABASE_INTEGRATION_NAME)
-        def wrapped(charm: CharmBase, event: HookEvent) -> sentinel:
-            return sentinel
-
-        assert wrapped(harness.charm, mocked_hook_event) is None
-        assert isinstance(harness.model.unit.status, ActiveStatus)
-
-    def test_database_resource_created(
-        self, harness: Harness, database_resource: MagicMock, mocked_hook_event: MagicMock
-    ) -> None:
-        @validate_database_resource
-        def wrapped(charm: CharmBase, event: HookEvent) -> sentinel:
-            return sentinel
-
-        assert wrapped(harness.charm, mocked_hook_event) is sentinel
-
-    def test_database_resource_not_created(
-        self, harness: Harness, mocked_hook_event: MagicMock
-    ) -> None:
-        @validate_database_resource
-        def wrapped(charm: CharmBase, event: HookEvent) -> sentinel:
-            return sentinel
-
-        assert wrapped(harness.charm, mocked_hook_event) is None
-        assert isinstance(harness.model.unit.status, WaitingStatus)
-
-    def test_tls_certificates_not_exist(
-        self,
-        mocked_tls_certificates: MagicMock,
-        harness: Harness,
-        mocked_hook_event: MagicMock,
-    ) -> None:
-        @demand_tls_certificates
-        def wrapped(charm: CharmBase, event: HookEvent) -> sentinel:
-            charm.unit.status = ActiveStatus()
-            return sentinel
-
-        mocked_tls_certificates.return_value = False
-        assert wrapped(harness.charm, mocked_hook_event) is None
-        assert isinstance(harness.model.unit.status, BlockedStatus)
-
-    def test_demand_tls_certificates(
-        self,
-        harness: Harness,
-        mocked_hook_event: MagicMock,
-        mocked_tls_certificates: MagicMock,
-    ) -> None:
-        @demand_tls_certificates
-        def wrapped(charm: CharmBase, event: HookEvent) -> sentinel:
-            return sentinel
-
-        assert wrapped(harness.charm, mocked_hook_event) is sentinel
 
     @patch("ops.model.Container.pull", return_value=StringIO("abc"))
     @patch("charm.ConfigFile.content", new_callable=PropertyMock, return_value="abc")

@@ -12,61 +12,48 @@ from tenacity import Retrying, TryAgain, wait_fixed
 
 logger = logging.getLogger(__name__)
 
-
-def _default_on_missing(charm: CharmBase, event: EventBase, **kwargs: Any) -> None:
-    logger.debug(f"Integration {kwargs.get('integration_name')} is missing.")
-
-
-def block_on_missing(charm: CharmBase, event: EventBase, **kwargs: Any) -> None:
-    integration_name = kwargs.get("integration_name")
-    logger.debug(f"Integration {integration_name} is missing, defer event {event}.")
-    event.defer()
-
-    charm.unit.status = BlockedStatus(f"Missing required integration {integration_name}")
+ConditionEvaluation = tuple[bool, str]
+Condition = Callable[[CharmBase], ConditionEvaluation]
 
 
-def leader_unit(func: Callable) -> Callable:
-    @wraps(func)
-    def wrapper(charm: CharmBase, *args: Any, **kwargs: Any) -> Optional[Any]:
-        if not charm.unit.is_leader():
-            return None
-
-        return func(charm, *args, **kwargs)
-
-    return wrapper
+def container_not_connected(charm: CharmBase) -> ConditionEvaluation:
+    not_connected = not charm._container.can_connect()
+    return not_connected, ("Container is not connected yet" if not_connected else "")
 
 
-def validate_container_connectivity(func: Callable) -> Callable:
-    @wraps(func)
-    def wrapper(charm: CharmBase, *args: EventBase, **kwargs: Any) -> Optional[Any]:
-        event, *_ = args
-        logger.debug(f"Handling event: {event}.")
-        if not charm._container.can_connect():
-            logger.debug(f"Cannot connect to container, defer event {event}.")
-            event.defer()
+def integration_not_exists(integration_name: str) -> Condition:
+    def wrapped(charm: CharmBase) -> ConditionEvaluation:
+        not_exists = not charm.model.relations[integration_name]
+        return not_exists, (f"Missing integration {integration_name}" if not_exists else "")
 
-            charm.unit.status = WaitingStatus("Waiting to connect to container")
-            return None
-
-        return func(charm, *args, **kwargs)
-
-    return wrapper
+    return wrapped
 
 
-def validate_integration_exists(
-    integration_name: str, on_missing: Optional[Callable] = None
-) -> Callable:
-    on_missing_request = on_missing or _default_on_missing
+def tls_certificates_not_ready(charm: CharmBase) -> ConditionEvaluation:
+    not_exists = charm.config.get("starttls_enabled", True) and not (
+        charm._container.exists(SERVER_KEY) and charm._container.exists(SERVER_CERT)
+    )
+    return not_exists, ("Missing TLS certificate and private key" if not_exists else "")
 
+
+def database_not_ready(charm: CharmBase) -> ConditionEvaluation:
+    not_exists = not charm.database_requirer.is_resource_created()
+    return not_exists, ("Waiting for database creation" if not_exists else "")
+
+
+def block_when(*conditions: Condition) -> Callable:
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         def wrapper(charm: CharmBase, *args: EventBase, **kwargs: Any) -> Optional[Any]:
             event, *_ = args
             logger.debug(f"Handling event: {event}.")
 
-            if not charm.model.relations[integration_name]:
-                on_missing_request(charm, event, integration_name=integration_name)
-                return None
+            for condition in conditions:
+                resp, msg = condition(charm)
+                if resp:
+                    event.defer()
+                    charm.unit.status = BlockedStatus(msg)
+                    return None
 
             return func(charm, *args, **kwargs)
 
@@ -75,37 +62,31 @@ def validate_integration_exists(
     return decorator
 
 
-def validate_database_resource(func: Callable) -> Callable:
-    @wraps(func)
-    def wrapper(charm: CharmBase, *args: EventBase, **kwargs: Any) -> Optional[Any]:
-        event, *_ = args
-        logger.debug(f"Handling event: {event}.")
+def wait_when(*conditions: Condition) -> Callable:
+    def decorator(func: Callable) -> Callable:
+        @wraps(func)
+        def wrapper(charm: CharmBase, *args: EventBase, **kwargs: Any) -> Optional[Any]:
+            event, *_ = args
+            logger.debug(f"Handling event: {event}.")
 
-        if not charm.database_requirer.is_resource_created():
-            logger.debug(f"Database has not been created yet, defer event {event}.")
-            event.defer()
+            for condition in conditions:
+                resp, msg = condition(charm)
+                if resp:
+                    event.defer()
+                    charm.unit.status = WaitingStatus(msg)
+                    return None
 
-            charm.unit.status = WaitingStatus("Waiting for database creation")
-            return None
+            return func(charm, *args, **kwargs)
 
-        return func(charm, *args, **kwargs)
+        return wrapper
 
-    return wrapper
+    return decorator
 
 
-def demand_tls_certificates(func: Callable) -> Callable:
+def leader_unit(func: Callable) -> Callable:
     @wraps(func)
     def wrapper(charm: CharmBase, *args: Any, **kwargs: Any) -> Optional[Any]:
-        event, *_ = args
-        logger.debug(f"Handling event: {event}.")
-
-        if charm.config.get("starttls_enabled", True) and not (
-            charm._container.exists(SERVER_KEY) and charm._container.exists(SERVER_CERT)
-        ):
-            logger.debug(f"TLS certificate and private key not ready. defer event {event}.")
-            event.defer()
-
-            charm.unit.status = BlockedStatus("Missing required TLS certificate and private key")
+        if not charm.unit.is_leader():
             return None
 
         return func(charm, *args, **kwargs)
