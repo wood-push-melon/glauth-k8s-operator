@@ -61,29 +61,53 @@ class TestRemoveEvent:
 
 
 class TestPebbleReadyEvent:
-    def test_when_container_not_connected(self, harness: Harness) -> None:
+    def test_when_container_not_connected(
+        self,
+        harness: Harness,
+        database_relation: int,
+        certificates_relation: int,
+    ) -> None:
         harness.set_can_connect(WORKLOAD_CONTAINER, False)
         container = harness.model.unit.get_container(WORKLOAD_CONTAINER)
         harness.charm.on.glauth_pebble_ready.emit(container)
 
         assert isinstance(harness.model.unit.status, WaitingStatus)
 
-    def test_when_missing_database_relation(self, harness: Harness) -> None:
+    def test_when_missing_database_relation(
+        self,
+        harness: Harness,
+        certificates_relation: int,
+    ) -> None:
         container = harness.model.unit.get_container(WORKLOAD_CONTAINER)
         harness.charm.on.glauth_pebble_ready.emit(container)
 
         assert isinstance(harness.model.unit.status, BlockedStatus)
 
-    def test_when_tls_certificates_not_exist(self, harness: Harness) -> None:
+    def test_when_missing_certificates_relation(
+        self,
+        harness: Harness,
+        database_relation: int,
+    ) -> None:
+        harness.charm.on.config_changed.emit()
+
+        assert isinstance(harness.model.unit.status, BlockedStatus)
+
+    def test_when_tls_certificates_not_exist(
+        self,
+        harness: Harness,
+        certificates_relation: int,
+        database_resource: MagicMock,
+    ) -> None:
         container = harness.model.unit.get_container(WORKLOAD_CONTAINER)
         harness.charm.on.glauth_pebble_ready.emit(container)
 
-        assert isinstance(harness.model.unit.status, BlockedStatus)
+        assert isinstance(harness.model.unit.status, WaitingStatus)
 
     def test_when_database_not_created(
         self,
         harness: Harness,
         database_relation: int,
+        certificates_relation: int,
         mocked_tls_certificates: MagicMock,
     ) -> None:
         container = harness.model.unit.get_container(WORKLOAD_CONTAINER)
@@ -94,7 +118,7 @@ class TestPebbleReadyEvent:
     def test_pebble_ready_event(
         self,
         harness: Harness,
-        database_relation: int,
+        certificates_relation: int,
         database_resource: MagicMock,
         mocked_tls_certificates: MagicMock,
     ) -> None:
@@ -112,7 +136,7 @@ class TestDatabaseCreatedEvent:
         self,
         harness: Harness,
         mocked_tls_certificates: MagicMock,
-        database_relation: int,
+        certificates_relation: int,
         database_resource: MagicMock,
     ) -> None:
         container = harness.model.unit.get_container(WORKLOAD_CONTAINER)
@@ -123,33 +147,50 @@ class TestDatabaseCreatedEvent:
 
 
 class TestConfigChangedEvent:
-    def test_when_container_not_connected(self, harness: Harness) -> None:
+    def test_when_container_not_connected(
+        self,
+        harness: Harness,
+        database_relation: int,
+        certificates_relation: int,
+    ) -> None:
         harness.set_can_connect(WORKLOAD_CONTAINER, False)
         harness.charm.on.config_changed.emit()
 
         assert isinstance(harness.model.unit.status, WaitingStatus)
 
+    def test_when_missing_database_relation(
+        self,
+        harness: Harness,
+        certificates_relation: int,
+    ) -> None:
+        harness.charm.on.config_changed.emit()
+
+        assert isinstance(harness.model.unit.status, BlockedStatus)
+
+    def test_when_missing_certificates_relation(
+        self,
+        harness: Harness,
+        database_relation: int,
+    ) -> None:
+        harness.charm.on.config_changed.emit()
+
+        assert isinstance(harness.model.unit.status, BlockedStatus)
+
     def test_when_tls_certificates_not_exist(
         self,
         harness: Harness,
-        database_relation: MagicMock,
+        certificates_relation: int,
         database_resource: MagicMock,
     ) -> None:
         harness.charm.on.config_changed.emit()
 
-        assert isinstance(harness.model.unit.status, BlockedStatus)
-
-    def test_when_missing_database_relation(
-        self, harness: Harness, mocked_tls_certificates: MagicMock
-    ) -> None:
-        harness.charm.on.config_changed.emit()
-
-        assert isinstance(harness.model.unit.status, BlockedStatus)
+        assert isinstance(harness.model.unit.status, WaitingStatus)
 
     def test_when_database_not_created(
         self,
         harness: Harness,
         database_relation: int,
+        certificates_relation: int,
         mocked_tls_certificates: MagicMock,
     ) -> None:
         harness.charm.on.config_changed.emit()
@@ -159,7 +200,7 @@ class TestConfigChangedEvent:
     def test_on_config_changed_event(
         self,
         harness: Harness,
-        database_relation: int,
+        certificates_relation: int,
         database_resource: MagicMock,
         mocked_tls_certificates: MagicMock,
     ) -> None:
@@ -174,13 +215,18 @@ class TestConfigChangedEvent:
 
 class TestLdapRequestedEvent:
     def test_when_database_not_created(
-        self, harness: Harness, database_relation: int, ldap_relation_data: MagicMock
+        self,
+        harness: Harness,
+        database_relation: int,
+        certificates_relation: int,
+        ldap_relation_data: MagicMock,
     ) -> None:
         assert isinstance(harness.model.unit.status, WaitingStatus)
 
     def test_when_requirer_data_not_ready(
         self,
         harness: Harness,
+        certificates_relation: int,
         database_resource: MagicMock,
         ldap_relation: int,
     ) -> None:
@@ -190,6 +236,7 @@ class TestLdapRequestedEvent:
         self,
         harness: Harness,
         mocked_tls_certificates: MagicMock,
+        certificates_relation: int,
         database_resource: MagicMock,
         mocked_ldap_integration: MagicMock,
         ldap_relation: int,
@@ -214,6 +261,7 @@ class TestLdapAuxiliaryRequestedEvent:
         self,
         harness: Harness,
         mocked_tls_certificates: MagicMock,
+        certificates_relation: int,
         database_resource: MagicMock,
         ldap_auxiliary_relation: int,
         ldap_auxiliary_relation_data: MagicMock,
