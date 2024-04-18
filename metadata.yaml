@@ -9,7 +9,7 @@ description: |
 summary: |
   LDAP authentication provider
 
-doc: https//discourse.charmhub.io/t/13946
+docs: https://discourse.charmhub.io/t/13946
 
 containers:
   glauth:
