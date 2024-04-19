@@ -14,7 +14,7 @@ from charms.certificate_transfer_interface.v0.certificate_transfer import (
 )
 from charms.glauth_k8s.v0.ldap import LdapProviderBaseData, LdapProviderData
 from charms.glauth_utils.v0.glauth_auxiliary import AuxiliaryData
-from charms.observability_libs.v0.cert_handler import CertHandler
+from charms.observability_libs.v1.cert_handler import CertHandler
 from configs import DatabaseConfig
 from constants import (
     CERTIFICATE_FILE,
@@ -134,7 +134,7 @@ class AuxiliaryIntegration:
 @dataclass
 class CertificateData:
     ca_cert: Optional[str] = None
-    ca_chain: Optional[list[str]] = None
+    ca_chain: Optional[str] = None
     cert: Optional[str] = None
 
 
@@ -147,9 +147,8 @@ class CertificatesIntegration:
         self.cert_handler = CertHandler(
             charm,
             key="glauth-server-cert",
-            peer_relation_name="glauth-peers",
             cert_subject=hostname,
-            extra_sans_dns=[
+            sans=[
                 hostname,
                 f"{charm.app.name}.{charm.model.name}.svc.cluster.local",
             ],
@@ -157,18 +156,18 @@ class CertificatesIntegration:
 
     @property
     def _ca_cert(self) -> Optional[str]:
-        return self.cert_handler.ca
+        return self.cert_handler.ca_cert
 
     @property
     def _server_key(self) -> Optional[str]:
-        return self.cert_handler.key
+        return self.cert_handler.private_key
 
     @property
     def _server_cert(self) -> Optional[str]:
-        return self.cert_handler.cert
+        return self.cert_handler.server_cert
 
     @property
-    def _ca_chain(self) -> list[str]:
+    def _ca_chain(self) -> Optional[str]:
         return self.cert_handler.chain
 
     @property

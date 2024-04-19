@@ -18,7 +18,7 @@ from charms.glauth_k8s.v0.ldap import LdapProvider, LdapRequestedEvent
 from charms.glauth_utils.v0.glauth_auxiliary import AuxiliaryProvider, AuxiliaryRequestedEvent
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.loki_k8s.v0.loki_push_api import LogProxyConsumer, PromtailDigestError
-from charms.observability_libs.v0.cert_handler import CertChanged
+from charms.observability_libs.v1.cert_handler import CertChanged
 from charms.observability_libs.v0.kubernetes_service_patch import KubernetesServicePatch
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from configs import ConfigFile, DatabaseConfig, StartTLSConfig, pebble_layer
