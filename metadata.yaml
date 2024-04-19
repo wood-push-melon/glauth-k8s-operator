@@ -9,6 +9,8 @@ description: |
 summary: |
   LDAP authentication provider
 
+docs: https://discourse.charmhub.io/t/13946
+
 containers:
   glauth:
     resource: oci-image

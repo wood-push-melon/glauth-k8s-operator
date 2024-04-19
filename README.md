@@ -14,20 +14,29 @@ for [GLAuth](https://github.com/glauth/glauth), an open-sourced LDAP server.
 
 ## Usage
 
-The GLAuth charmed operator can be deployed using the following command:
+The `glauth-k8s` charmed operator can be deployed using the following command:
 
 ```shell
-$ juju deploy glauth-k8s --channel edge --trust
+juju deploy glauth-k8s --channel edge --trust
 ```
 
-The GLAuth charmed operator uses
+The `glauth-k8s` charmed operator uses
 the [Charmed PostgreSQL K8s Operator](https://github.com/canonical/postgresql-k8s-operator)
 as the backend:
 
 ```shell
-$ juju deploy postgresql-k8s --channel stable --trust
+juju deploy postgresql-k8s --channel 14/stable --trust
 
-$ juju integrate glauth-k8s postgresql-k8s
+juju integrate glauth-k8s postgresql-k8s
+```
+
+The `glauth-k8s` charmed operator also requires a certificate provider. Take
+the `self-signed-certificates-operator` as an example:
+
+```shell
+juju deploy self-signed-certificates --channel stable --trust
+
+juju integrate glauth-k8s self-signed-certificates
 ```
 
 ## Integrations
@@ -39,7 +48,7 @@ LDAP client charmed operator following
 the [`ldap` interface protocol](https://github.com/canonical/charm-relation-interfaces/tree/main/interfaces/ldap/v0).
 
 ```shell
-$ juju integrate <ldap-client-charm>:ldap glauth-k8s:ldap
+juju integrate <ldap-client-charm>:ldap glauth-k8s:ldap
 ```
 
 ### `glauth_auxiliary` Integration
@@ -50,7 +59,7 @@ the [`glauth-utils` charmed operator](https://github.com/canonical/glauth-utils)
 to deliver necessary auxiliary configurations.
 
 ```shell
-$ juju integrate glauth-utils glauth-k8s
+juju integrate glauth-utils glauth-k8s
 ```
 
 ### `certificate_transfer` Integration
@@ -60,7 +69,7 @@ integration with any charmed operator following the [`certificate_transfer`
 interface protocol](https://github.com/canonical/charm-relation-interfaces/tree/main/interfaces/certificate_transfer/v0).
 
 ```shell
-$ juju integrate <client-charm> glauth-k8s
+juju integrate <client-charm> glauth-k8s
 ```
 
 ### `postgresql_client` Integration
@@ -70,7 +79,7 @@ The `glauth-k8s` charmed operator requires the integration with the
 protocol](https://github.com/canonical/charm-relation-interfaces/tree/main/interfaces/postgresql_client/v0).
 
 ```shell
-$ juju integrate glauth-k8s postgresql-k8s
+juju integrate glauth-k8s postgresql-k8s
 ```
 
 ### `tls_certificates` Integration
@@ -81,7 +90,7 @@ interface protocol](https://github.com/canonical/charm-relation-interfaces/tree/
 Take the `self-signed-certificates-operator` as an example:
 
 ```shell
-$ juju integrate glauth-k8s self-signed-certificates
+juju integrate glauth-k8s self-signed-certificates
 ```
 
 ## Configurations
