@@ -1,6 +1,7 @@
 # Copyright 2023 Canonical Ltd.
 # See LICENSE file for licensing details.
 
+import os
 from typing import Callable
 from unittest.mock import MagicMock
 
@@ -204,3 +205,8 @@ def certificates_transfer_relation(harness: Harness) -> int:
     )
     harness.add_relation_unit(relation_id, f"{CERTIFICATES_TRANSFER_CLIENT_APP}/0")
     return relation_id
+
+
+@pytest.fixture(autouse=True)
+def mocked_juju_version(mocker: MockerFixture) -> MagicMock:
+    return mocker.patch.dict(os.environ, {"JUJU_VERSION": "3.2.1"})
