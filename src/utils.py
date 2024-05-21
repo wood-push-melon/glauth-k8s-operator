@@ -5,10 +5,11 @@ import logging
 from functools import wraps
 from typing import Any, Callable, Optional
 
-from constants import GLAUTH_CONFIG_FILE, SERVER_CERT, SERVER_KEY
 from ops.charm import CharmBase, EventBase
 from ops.model import BlockedStatus, WaitingStatus
 from tenacity import Retrying, TryAgain, wait_fixed
+
+from constants import GLAUTH_CONFIG_FILE, SERVER_CERT, SERVER_KEY
 
 logger = logging.getLogger(__name__)
 

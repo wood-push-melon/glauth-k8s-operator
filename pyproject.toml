@@ -22,21 +22,34 @@ show_missing = true
 minversion = "6.0"
 log_cli_level = "INFO"
 
-# Formatting tools configuration
-[tool.black]
-line-length = 99
-target-version = ["py38"]
+# Linting and formatting tools configuration
+[tool.codespell]
+# https://github.com/codespell-project/codespell
+skip = ".git,.tox,build,lib,venv,.venv,.mypy_cache,icon.svg,__pycache__"
 
-# Linting tools configuration
+[tool.isort]
+# Profiles: https://pycqa.github.io/isort/docs/configuration/profiles.html
+line_length = 99
+profile = "black"
+
 [tool.ruff]
+# Default settings: https://docs.astral.sh/ruff/configuration/
+# Settings: https://docs.astral.sh/ruff/settings/
 line-length = 99
-include = ["pyproject.toml", "src/**/*.py", "tests/**/*.py", "lib/charms/glauth_k8s/**/.py"]
+include = ["pyproject.toml", "src/**/*.py", "tests/**/*.py", "lib/charms/glauth_k8s/**/*.py"]
 extend-exclude = ["__pycache__", "*.egg_info"]
+preview = true
 
-[too.ruff.lint]
-select = ["E", "W", "F", "C", "N", "D", "I001"]
-ignore = ["D100", "D101", "D102", "D103", "D105", "D107", "E501", "N818"]
-extend-ignore = [
+[tool.ruff.lint]
+# Rules: https://docs.astral.sh/ruff/rules/
+select = ["E", "W", "F", "C", "N", "D", "CPY"]
+ignore = [
+    "D100",
+    "D101",
+    "D102",
+    "D103",
+    "D105",
+    "D107",
     "D203",
     "D204",
     "D213",
@@ -48,8 +61,13 @@ extend-ignore = [
     "D408",
     "D409",
     "D413",
+    "E501",
+    "N818"
 ]
 per-file-ignores = {"tests/*" = ["D100","D101","D102","D103","D104"]}
+
+[tool.ruff.lint.flake8-copyright]
+author = "Canonical Ltd."
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10
@@ -57,6 +75,7 @@ max-complexity = 10
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
+# Type checking tools configuration
 [tool.mypy]
 pretty = true
 mypy_path = "./src:./lib/:./tests"

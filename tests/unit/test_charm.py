@@ -4,17 +4,14 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-from conftest import (
-    LDAP_AUXILIARY_APP,
-    LDAP_CLIENT_APP,
-    LDAP_PROVIDER_DATA,
-)
-from constants import WORKLOAD_CONTAINER, WORKLOAD_SERVICE
-from exceptions import CertificatesError
-from kubernetes_resource import KubernetesResourceError
+from conftest import LDAP_AUXILIARY_APP, LDAP_CLIENT_APP, LDAP_PROVIDER_DATA
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
 from ops.testing import Harness
 from pytest_mock import MockerFixture
+
+from constants import WORKLOAD_CONTAINER, WORKLOAD_SERVICE
+from exceptions import CertificatesError
+from kubernetes_resource import KubernetesResourceError
 
 
 class TestInstallEvent:
