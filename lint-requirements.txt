@@ -1,4 +1,3 @@
-black
 codespell
-pre-commit
+isort
 ruff

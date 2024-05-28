@@ -6,17 +6,18 @@ from typing import Callable
 from unittest.mock import MagicMock
 
 import pytest
-from charm import GLAuthCharm
 from charms.glauth_k8s.v0.ldap import LdapProviderData
+from ops.charm import CharmBase
+from ops.testing import Harness
+from pytest_mock import MockerFixture
+
+from charm import GLAuthCharm
 from constants import (
     CERTIFICATES_INTEGRATION_NAME,
     CERTIFICATES_TRANSFER_INTEGRATION_NAME,
     DATABASE_INTEGRATION_NAME,
     WORKLOAD_CONTAINER,
 )
-from ops.charm import CharmBase
-from ops.testing import Harness
-from pytest_mock import MockerFixture
 
 DB_APP = "postgresql-k8s"
 DB_DATABASE = "glauth"

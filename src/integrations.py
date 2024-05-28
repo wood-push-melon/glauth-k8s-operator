@@ -15,6 +15,10 @@ from charms.certificate_transfer_interface.v0.certificate_transfer import (
 from charms.glauth_k8s.v0.ldap import LdapProviderBaseData, LdapProviderData
 from charms.glauth_utils.v0.glauth_auxiliary import AuxiliaryData
 from charms.observability_libs.v1.cert_handler import CertHandler
+from ops.charm import CharmBase
+from ops.pebble import PathError
+from tenacity import Retrying, retry_if_exception_type, stop_after_attempt, wait_fixed
+
 from configs import DatabaseConfig
 from constants import (
     CERTIFICATE_FILE,
@@ -28,14 +32,6 @@ from constants import (
 )
 from database import Capability, Group, Operation, User
 from exceptions import CertificatesError
-from ops.charm import CharmBase
-from ops.pebble import PathError
-from tenacity import (
-    Retrying,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_fixed,
-)
 
 logger = logging.getLogger(__name__)
 

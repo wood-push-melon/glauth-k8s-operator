@@ -1,6 +1,12 @@
+# Copyright 2024 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Mapping, Optional
+
+from jinja2 import Template
+from ops.pebble import Layer
 
 from constants import (
     GLAUTH_COMMANDS,
@@ -10,8 +16,6 @@ from constants import (
     SERVER_KEY,
     WORKLOAD_SERVICE,
 )
-from jinja2 import Template
-from ops.pebble import Layer
 
 
 @dataclass
@@ -83,20 +87,18 @@ class ConfigFile:
         return rendered
 
 
-pebble_layer = Layer(
-    {
-        "summary": "GLAuth layer",
-        "description": "pebble layer for GLAuth service",
-        "services": {
-            WORKLOAD_SERVICE: {
-                "override": "replace",
-                "summary": "GLAuth Operator layer",
-                "startup": "disabled",
-                "command": '/bin/sh -c "{} 2>&1 | tee {}"'.format(
-                    GLAUTH_COMMANDS,
-                    LOG_FILE,
-                ),
-            }
-        },
-    }
-)
+pebble_layer = Layer({
+    "summary": "GLAuth layer",
+    "description": "pebble layer for GLAuth service",
+    "services": {
+        WORKLOAD_SERVICE: {
+            "override": "replace",
+            "summary": "GLAuth Operator layer",
+            "startup": "disabled",
+            "command": '/bin/sh -c "{} 2>&1 | tee {}"'.format(
+                GLAUTH_COMMANDS,
+                LOG_FILE,
+            ),
+        }
+    },
+})

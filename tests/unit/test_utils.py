@@ -4,10 +4,11 @@
 from io import StringIO
 from unittest.mock import MagicMock, PropertyMock, patch, sentinel
 
-from constants import DATABASE_INTEGRATION_NAME, WORKLOAD_CONTAINER
 from ops.charm import CharmBase, HookEvent
 from ops.model import ActiveStatus, BlockedStatus, WaitingStatus
 from ops.testing import Harness
+
+from constants import DATABASE_INTEGRATION_NAME, WORKLOAD_CONTAINER
 from utils import (
     after_config_updated,
     block_when,

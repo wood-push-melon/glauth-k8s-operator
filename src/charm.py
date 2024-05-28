@@ -18,9 +18,23 @@ from charms.glauth_k8s.v0.ldap import LdapProvider, LdapRequestedEvent
 from charms.glauth_utils.v0.glauth_auxiliary import AuxiliaryProvider, AuxiliaryRequestedEvent
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.loki_k8s.v0.loki_push_api import LogProxyConsumer, PromtailDigestError
-from charms.observability_libs.v1.cert_handler import CertChanged
 from charms.observability_libs.v0.kubernetes_service_patch import KubernetesServicePatch
+from charms.observability_libs.v1.cert_handler import CertChanged
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
+from lightkube import Client
+from ops.charm import (
+    CharmBase,
+    ConfigChangedEvent,
+    HookEvent,
+    InstallEvent,
+    PebbleReadyEvent,
+    RelationJoinedEvent,
+    RemoveEvent,
+)
+from ops.main import main
+from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
+from ops.pebble import ChangeError
+
 from configs import ConfigFile, DatabaseConfig, StartTLSConfig, pebble_layer
 from constants import (
     CERTIFICATES_INTEGRATION_NAME,
@@ -43,19 +57,6 @@ from integrations import (
     LdapIntegration,
 )
 from kubernetes_resource import ConfigMapResource, StatefulSetResource
-from lightkube import Client
-from ops.charm import (
-    CharmBase,
-    ConfigChangedEvent,
-    HookEvent,
-    InstallEvent,
-    PebbleReadyEvent,
-    RelationJoinedEvent,
-    RemoveEvent,
-)
-from ops.main import main
-from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
-from ops.pebble import ChangeError
 from utils import (
     after_config_updated,
     block_when,
