@@ -12,7 +12,7 @@ from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from pytest_operator.plugin import OpsTest
 
-METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
+METADATA = yaml.safe_load(Path("./charmcraft.yaml").read_text())
 CERTIFICATE_PROVIDER_APP = "self-signed-certificates"
 DB_APP = "postgresql-k8s"
 GLAUTH_APP = METADATA["name"]

@@ -1,7 +1,90 @@
 # This file configures Charmcraft.
 # See https://juju.is/docs/sdk/charmcraft-config for guidance.
 
+name: glauth-k8s
 type: charm
+description: |
+  Kubernetes Charmed Glauth Operator
+summary: |
+  LDAP authentication provider
+
+links:
+  documentation: https://discourse.charmhub.io/t/13946
+  source: https://github.com/canonical/glauth-k8s-operator
+  issues: https://github.com/canonical/glauth-k8s-operator/issues
+
+containers:
+  glauth:
+    resource: oci-image
+
+resources:
+  oci-image:
+    type: oci-image
+    description: GLAuth oci-image
+    upstream-source: ghcr.io/canonical/glauth:2.3.1
+
+requires:
+  pg-database:
+    interface: postgresql_client
+    optional: false
+    limit: 1
+  logging:
+    interface: loki_push_api
+    optional: true
+  certificates:
+    interface: tls-certificates
+    limit: 1
+    optional: true
+
+provides:
+  metrics-endpoint:
+    description: |
+      Provides application metrics to COS Prometheus instance.
+    interface: prometheus_scrape
+  grafana-dashboard:
+    description: |
+      Forwards the built-in grafana dashboard(s) for monitoring GLAuth.
+    interface: grafana_dashboard
+  ldap:
+    description: |
+      Provides LDAP configuration data
+    interface: ldap
+  glauth-auxiliary:
+    description: |
+      Provides auxiliary data for glauth-utils charmed operator.
+    interface: glauth_auxiliary
+  send-ca-cert:
+    description: |
+      Transfer certificates to client charmed operators.
+    interface: certificate_transfer
+
+config:
+  options:
+    log_level:
+      description: |
+        Configures the log level.
+
+        Acceptable values are: "info", "debug", "warning", "error" and "critical"
+      default: "info"
+      type: string
+    base_dn:
+      description: The base DN
+      default: "dc=glauth,dc=com"
+      type: string
+    hostname:
+      description: |
+        The hostname of the LDAP server.
+
+        The hostname should NOT contain the LDAP scheme (e.g. ldap://) and port.
+      default: "ldap.glauth.com"
+      type: string
+    starttls_enabled:
+      description: |
+        Enable the StartTLS support or not. DO NOT TURN IT OFF IN PRODUCTION.
+      default: true
+      type: boolean
+
+
 bases:
   - build-on:
     - name: ubuntu
@@ -9,6 +92,7 @@ bases:
     run-on:
     - name: ubuntu
       channel: "22.04"
+
 parts:
   charm:
     charm-binary-python-packages:
