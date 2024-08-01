@@ -213,7 +213,6 @@ class GLAuthCharm(CharmBase):
     @leader_unit
     def _on_install(self, event: InstallEvent) -> None:
         self._configmap.create(data={"glauth.cfg": self.config_file.content})
-        self._mount_glauth_config()
 
     @leader_unit
     def _on_remove(self, event: RemoveEvent) -> None:
@@ -238,8 +237,12 @@ class GLAuthCharm(CharmBase):
             data=self._ldap_integration.provider_base_data
         )
 
-    @wait_when(container_not_connected)
     def _on_pebble_ready(self, event: PebbleReadyEvent) -> None:
+        self._mount_glauth_config()
+        self.__on_pebble_ready(event)
+
+    @wait_when(container_not_connected)
+    def __on_pebble_ready(self, event: PebbleReadyEvent) -> None:
         if not self._container.isdir(LOG_DIR):
             self._container.make_dir(path=LOG_DIR, make_parents=True)
             logger.debug(f"Created logging directory {LOG_DIR}")
