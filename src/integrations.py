@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 class BindAccount:
     cn: str
     ou: str
-    password: str
+    password: Optional[str]
 
 
 def _create_bind_account(dsn: str, user_name: str, group_name: str) -> BindAccount:
@@ -49,16 +49,17 @@ def _create_bind_account(dsn: str, user_name: str, group_name: str) -> BindAccou
             group = Group(name=group_name, gid_number=DEFAULT_GID)
             op.add(group)
 
+        password = None
         if not (user := op.select(User, User.name == user_name)):
-            new_password = hashlib.sha256(token_bytes()).hexdigest()
+            new_password = token_bytes()
             user = User(
                 name=user_name,
                 uid_number=DEFAULT_UID,
                 gid_number=DEFAULT_GID,
-                password_sha256=new_password,
+                password_sha256=hashlib.sha256(new_password).hexdigest(),
             )
+            password = new_password.decode()
             op.add(user)
-        password = user.password_bcrypt or user.password_sha256
 
         if not op.select(Capability, Capability.user_id == DEFAULT_UID):
             capability = Capability(user_id=DEFAULT_UID)
