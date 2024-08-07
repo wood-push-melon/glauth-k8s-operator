@@ -234,10 +234,7 @@ class TestLdapRequestedEvent:
         assert isinstance(harness.model.unit.status, ActiveStatus)
 
         actual = dict(harness.get_relation_data(ldap_relation, harness.model.app.name))
-        secret_id = actual.get("bind_password_secret")
-        secret_content = harness.model.get_secret(id=secret_id).get_content()
-        actual["bind_password_secret"] = secret_content.get("password")
-        assert LDAP_PROVIDER_DATA.model_dump() == actual
+        assert LDAP_PROVIDER_DATA.model_dump(by_alias=True) == actual
 
 
 class TestLdapAuxiliaryRequestedEvent:

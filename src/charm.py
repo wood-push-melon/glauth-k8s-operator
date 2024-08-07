@@ -233,9 +233,7 @@ class GLAuthCharm(CharmBase):
     def _on_config_changed(self, event: ConfigChangedEvent) -> None:
         self.config_file.base_dn = self.config.get("base_dn")
         self._handle_event_update(event)
-        self.ldap_provider.update_relations_app_data(
-            data=self._ldap_integration.provider_base_data
-        )
+        self.ldap_provider.update_relations_app_data(self._ldap_integration.provider_base_data)
 
     def _on_pebble_ready(self, event: PebbleReadyEvent) -> None:
         self._mount_glauth_config()
@@ -256,10 +254,15 @@ class GLAuthCharm(CharmBase):
             logger.error(f"The LDAP requirer {event.app.name} does not provide necessary data.")
             return
 
-        self._ldap_integration.load_bind_account(requirer_data.user, requirer_data.group)
+        self._ldap_integration.load_bind_account(
+            requirer_data.user, requirer_data.group, event.relation.id
+        )
+        if not self._ldap_integration.provider_data:
+            return
+
         self.ldap_provider.update_relations_app_data(
+            self._ldap_integration.provider_data,
             relation_id=event.relation.id,
-            data=self._ldap_integration.provider_data,
         )
 
     @wait_when(database_not_ready)
