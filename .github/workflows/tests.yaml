@@ -47,7 +47,7 @@ jobs:
         if: failure()
 
       - name: Get juju logs
-        run: juju debug-log --replay --include unit-glauth-k8s-0
+        run: juju debug-log --replay --include glauth-k8s
         if: failure()
 
       - name: Get GLAuth container logs
