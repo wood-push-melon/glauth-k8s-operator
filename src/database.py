@@ -29,8 +29,8 @@ class User(Base):
     name: Mapped[str] = mapped_column(String, name="name", unique=True)
     uid_number: Mapped[int] = mapped_column(name="uidnumber")
     gid_number: Mapped[int] = mapped_column(name="primarygroup")
-    password_sha256: Mapped[Optional[str]] = mapped_column(name="passsha256")
-    password_bcrypt: Mapped[Optional[str]] = mapped_column(name="passbcrypt")
+    password_sha256: Mapped[Optional[str]] = mapped_column(name="passsha256", default="")
+    password_bcrypt: Mapped[Optional[str]] = mapped_column(name="passbcrypt", default="")
 
 
 class Group(Base):
