@@ -96,4 +96,9 @@ bases:
 parts:
   charm:
     charm-binary-python-packages:
+      - jsonschema
       - cryptography
+      - psycopg[binary]
+    build-packages:
+      - rustc
+      - cargo
