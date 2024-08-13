@@ -37,7 +37,7 @@ class AnyCharm(AnyCharmBase):
 
     def _on_ldap_ready(self, event: LdapReadyEvent) -> None:
         ldap_data = self.ldap_requirer.consume_ldap_relation_data(
-            event.relation.id,
+            relation=event.relation,
         )
 
     def _on_certificate_available(self, event: CertificateAvailableEvent) -> None:

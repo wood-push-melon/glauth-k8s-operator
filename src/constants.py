@@ -4,6 +4,7 @@
 from pathlib import Path, PurePath
 from string import Template
 
+LDAP_CLIENT_INTEGRATION_NAME = "ldap-client"
 DATABASE_INTEGRATION_NAME = "pg-database"
 LOKI_API_PUSH_INTEGRATION_NAME = "logging"
 PROMETHEUS_SCRAPE_INTEGRATION_NAME = "metrics-endpoint"

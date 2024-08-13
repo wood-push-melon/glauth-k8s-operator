@@ -1,6 +1,7 @@
 -r requirements.txt
 coverage[toml]
 cryptography
+ipdb
 jsonschema
 pytest
 pytest-mock

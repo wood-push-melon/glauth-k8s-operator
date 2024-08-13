@@ -4,7 +4,7 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-from conftest import LDAP_AUXILIARY_APP, LDAP_CLIENT_APP, LDAP_PROVIDER_DATA
+from conftest import LDAP_AUXILIARY_APP, LDAP_CLIENT_APP, LDAP_PROVIDER_APP, LDAP_PROVIDER_DATA
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
 from ops.testing import Harness
 from pytest_mock import MockerFixture
@@ -92,10 +92,11 @@ class TestPebbleReadyEvent:
 
         assert isinstance(harness.model.unit.status, WaitingStatus)
 
-    def test_when_database_not_created(
+    def test_when_backend_not_created(
         self,
         harness: Harness,
         database_relation: int,
+        ldap_client_relation: int,
         certificates_relation: int,
         mocked_tls_certificates: MagicMock,
     ) -> None:
@@ -104,11 +105,26 @@ class TestPebbleReadyEvent:
 
         assert isinstance(harness.model.unit.status, WaitingStatus)
 
-    def test_pebble_ready_event(
+    def test_pebble_ready_event_with_database_backend(
         self,
         harness: Harness,
         certificates_relation: int,
         database_resource: MagicMock,
+        mocked_tls_certificates: MagicMock,
+    ) -> None:
+        container = harness.model.unit.get_container(WORKLOAD_CONTAINER)
+
+        harness.charm.on.glauth_pebble_ready.emit(container)
+
+        service = container.get_service(WORKLOAD_SERVICE)
+        assert service.is_running()
+        assert isinstance(harness.model.unit.status, ActiveStatus)
+
+    def test_pebble_ready_event_with_ldap_backend(
+        self,
+        harness: Harness,
+        certificates_relation: int,
+        ldap_client_resource: MagicMock,
         mocked_tls_certificates: MagicMock,
     ) -> None:
         container = harness.model.unit.get_container(WORKLOAD_CONTAINER)
@@ -235,6 +251,34 @@ class TestLdapRequestedEvent:
 
         actual = dict(harness.get_relation_data(ldap_relation, harness.model.app.name))
         assert LDAP_PROVIDER_DATA.model_dump() == actual
+
+
+class TestLdapReadyEvent:
+    def test_when_requirer_data_not_ready(
+        self,
+        harness: Harness,
+        certificates_relation: int,
+        ldap_client_relation: int,
+    ) -> None:
+        assert not harness.get_relation_data(ldap_client_relation, LDAP_PROVIDER_APP)
+
+    def test_when_ldap_ready(
+        self,
+        harness: Harness,
+        mocked_tls_certificates: MagicMock,
+        certificates_relation: int,
+        mocked_ldap_integration: MagicMock,
+        ldap_client_relation: int,
+        ldap_client_resource: MagicMock,
+    ) -> None:
+        assert isinstance(harness.model.unit.status, ActiveStatus)
+
+        actual = dict(harness.get_relation_data(ldap_client_relation, harness.model.app.name))
+        expected = {
+            "group": harness.model.name,
+            "user": harness.model.app.name,
+        }
+        assert expected == actual
 
 
 class TestLdapAuxiliaryRequestedEvent:

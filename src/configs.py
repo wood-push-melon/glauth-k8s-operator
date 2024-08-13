@@ -3,8 +3,9 @@
 
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Mapping, Optional
+from typing import Any, List, Mapping, Optional
 
+from charms.glauth_k8s.v0.ldap import LdapProviderData, LdapRequirer
 from jinja2 import Template
 from ops.pebble import Layer
 
@@ -35,9 +36,9 @@ class DatabaseConfig:
         )
 
     @classmethod
-    def load(cls, requirer: Any) -> "DatabaseConfig":
+    def load(cls, requirer: Any) -> Optional["DatabaseConfig"]:
         if not (database_integrations := requirer.relations):
-            return DatabaseConfig()
+            return None
 
         integration_id = database_integrations[0].id
         integration_data = requirer.fetch_relation_data()[integration_id]
@@ -48,6 +49,24 @@ class DatabaseConfig:
             username=integration_data.get("username"),
             password=integration_data.get("password"),
         )
+
+
+@dataclass
+class LdapServerConfig:
+    ldap_servers: Optional[List[LdapProviderData]] = None
+
+    @classmethod
+    def load(cls, requirer: LdapRequirer) -> Optional["LdapServerConfig"]:
+        if not (ldap_integrations := requirer.relations):
+            return None
+
+        ldap_servers = [
+            data
+            for i in ldap_integrations
+            if (data := requirer.consume_ldap_relation_data(relation=i))
+        ]
+
+        return LdapServerConfig(ldap_servers)
 
 
 @dataclass
@@ -68,6 +87,7 @@ class ConfigFile:
     base_dn: Optional[str] = None
     database_config: Optional[DatabaseConfig] = None
     starttls_config: Optional[StartTLSConfig] = None
+    ldap_servers_config: Optional[LdapServerConfig] = None
 
     @property
     def content(self) -> str:
@@ -77,12 +97,14 @@ class ConfigFile:
         with open("templates/glauth.cfg.j2", mode="r") as file:
             template = Template(file.read())
 
-        database_config = self.database_config or DatabaseConfig()
-        starttls_config = self.starttls_config or StartTLSConfig()
+        database_config = asdict(self.database_config) if self.database_config else None
+        ldap_servers_config = self.ldap_servers_config
+        starttls_config = asdict(self.starttls_config) if self.starttls_config else None
         rendered = template.render(
             base_dn=self.base_dn,
-            database=asdict(database_config),
-            starttls=asdict(starttls_config),
+            database=database_config,
+            ldap_servers=ldap_servers_config,
+            starttls=starttls_config,
         )
         return rendered
 

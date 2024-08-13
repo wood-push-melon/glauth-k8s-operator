@@ -85,7 +85,9 @@ class LdapIntegration:
         self._bind_account: Optional[BindAccount] = None
 
     def load_bind_account(self, user: str, group: str, relation_id: int) -> None:
-        database_config = DatabaseConfig.load(self._charm.database_requirer)
+        if not (database_config := DatabaseConfig.load(self._charm.database_requirer)):
+            return
+
         self._bind_account = _create_bind_account(database_config.dsn, user, group)
         if not self._bind_account.password:
             password = self._charm.ldap_provider.get_bind_password(relation_id)
@@ -134,7 +136,8 @@ class AuxiliaryIntegration:
 
     @property
     def auxiliary_data(self) -> AuxiliaryData:
-        database_config = DatabaseConfig.load(self._charm.database_requirer)
+        if not (database_config := DatabaseConfig.load(self._charm.database_requirer)):
+            return AuxiliaryData()
 
         return AuxiliaryData(
             database=database_config.database,

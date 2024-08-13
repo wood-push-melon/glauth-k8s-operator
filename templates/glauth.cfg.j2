@@ -11,12 +11,22 @@ structuredlog = true
 [ldaps]
   enabled = false
 
-[backend]
+{%- if ldap_servers %}
+{%   for ldap_server in ldap_servers.ldap_servers %}
+[[backends]]
+  datastore = "ldap"
+  servers = {{ ldap_server.urls | list }}
+{%   endfor %}
+{% endif -%}
+
+{%- if database %}
+[[backends]]
   datastore = "plugin"
   plugin = "/bin/postgres.so"
   pluginhandler = "NewPostgresHandler"
   baseDN = "{{ base_dn }}"
   database = "postgres://{{ database.get('username') }}:{{ database.get('password') }}@{{ database.get('endpoint') }}/{{ database.get('database') }}?sslmode=disable"
+{% endif -%}
 
 [behaviors]
   # Ignore all capabilities restrictions, for instance allowing every user to perform a search

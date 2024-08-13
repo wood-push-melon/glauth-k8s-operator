@@ -25,6 +25,7 @@ DB_USERNAME = "relation_id"
 DB_PASSWORD = "password"
 DB_ENDPOINTS = "postgresql-k8s-primary.namespace.svc.cluster.local:5432"
 
+LDAP_PROVIDER_APP = "ldap-server"
 LDAP_CLIENT_APP = "ldap-client"
 LDAP_PROVIDER_DATA = LdapProviderData(
     urls=["ldap://ldap.glauth.com"],
@@ -170,6 +171,38 @@ def ldap_relation_data(harness: Harness, ldap_relation: int) -> None:
         {
             "user": "user",
             "group": "group",
+        },
+    )
+
+
+@pytest.fixture
+def ldap_client_relation(harness: Harness) -> int:
+    relation_id = harness.add_relation("ldap-client", LDAP_PROVIDER_APP)
+    harness.add_relation_unit(relation_id, f"{LDAP_PROVIDER_APP}/0")
+    return relation_id
+
+
+@pytest.fixture
+def ldap_client_resource(
+    harness: Harness,
+    ldap_client_relation: int,
+    mocked_configmap: MagicMock,
+    mocked_statefulset: MagicMock,
+    mocked_restart_glauth_service: Callable,
+) -> None:
+    secret_id = harness.add_model_secret(LDAP_PROVIDER_APP, {"password": "password"})
+    harness.grant_secret(secret_id, harness.model.app)
+    harness.update_relation_data(
+        ldap_client_relation,
+        LDAP_PROVIDER_APP,
+        {
+            "urls": '["ldap://ldap.glauth.com"]',
+            "base_dn": "dc=glauth,dc=com",
+            "bind_dn": "cn=user,ou=group,dc=glauth,dc=com",
+            "bind_password": "password",
+            "bind_password_secret": secret_id,
+            "auth_method": "simple",
+            "starttls": "True",
         },
     )
 

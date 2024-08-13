@@ -45,7 +45,7 @@ class RequirerCharm(CharmBase):
     def _on_ldap_ready(self, event: LdapReadyEvent) -> None:
         # Consume the LDAP related information
         ldap_data = self.ldap_requirer.consume_ldap_relation_data(
-            event.relation.id,
+            relation=event.relation,
         )
 
         # Configure the LDAP requirer charm
@@ -232,7 +232,7 @@ class LdapProviderBaseData(BaseModel):
     base_dn: str = Field(frozen=True)
     starttls: StrictBool = Field(frozen=True)
 
-    @field_validator("urls")
+    @field_validator("urls", mode="before")
     @classmethod
     def validate_ldap_urls(cls, vs: List[str] | str) -> List[str]:
         if isinstance(vs, str):
@@ -430,10 +430,12 @@ class LdapRequirer(Object):
     def consume_ldap_relation_data(
         self,
         /,
+        relation: Optional[Relation] = None,
         relation_id: Optional[int] = None,
     ) -> Optional[LdapProviderData]:
         """An API for the requirer charm to consume the LDAP related information in the application databag."""
-        relation = self.charm.model.get_relation(self._relation_name, relation_id)
+        if not relation:
+            relation = self.charm.model.get_relation(self._relation_name, relation_id)
 
         if not relation:
             return None
@@ -457,6 +459,41 @@ class LdapRequirer(Object):
         """The list of Relation instances associated with this relation_name."""
         return [
             relation
-            for relation in self.charm.model.relations[self.relation_name]
+            for relation in self.charm.model.relations[self._relation_name]
             if self._is_relation_active(relation)
         ]
+
+    def _ready_for_relation(self, relation: Relation) -> bool:
+        if not relation.app:
+            return False
+
+        return "urls" in relation.data[relation.app] and "bind_dn" in relation.data[relation.app]
+
+    def ready(self, relation_id: Optional[int] = None) -> bool:
+        """Check if the resource has been created.
+
+        This function can be used to check if the Provider answered with data in the charm code
+        when outside an event callback.
+
+        Args:
+            relation_id (int, optional): When provided the check is done only for the relation id
+                provided, otherwise the check is done for all relations
+
+        Returns:
+            True or False
+
+        Raises:
+            IndexError: If relation_id is provided but that relation does not exist
+        """
+        if relation_id is None:
+            return (
+                all(self._ready_for_relation(relation) for relation in self.relations)
+                if self.relations
+                else False
+            )
+
+        try:
+            relation = [relation for relation in self.relations if relation.id == relation_id][0]
+            return self._ready_for_relation(relation)
+        except IndexError:
+            raise IndexError(f"relation id {relation_id} cannot be accessed")
