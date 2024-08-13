@@ -122,6 +122,7 @@ situations, which are listed below:
 LDAP related information in order to connect and authenticate to the LDAP server
 """
 
+import json
 from functools import wraps
 from string import Template
 from typing import Any, Callable, List, Literal, Optional, Union
@@ -227,17 +228,27 @@ class Secret:
 
 
 class LdapProviderBaseData(BaseModel):
-    url: str = Field(frozen=True)
+    urls: List[str] = Field(frozen=True)
     base_dn: str = Field(frozen=True)
     starttls: StrictBool = Field(frozen=True)
 
-    @field_validator("url")
+    @field_validator("urls")
     @classmethod
-    def validate_ldap_url(cls, v: str) -> str:
-        if not v.startswith("ldap://"):
-            raise ValidationError("Invalid LDAP URL scheme.")
+    def validate_ldap_urls(cls, vs: List[str] | str) -> List[str]:
+        if isinstance(vs, str):
+            vs = json.loads(vs)
+            if isinstance(vs, str):
+                vs = [vs]
 
-        return v
+        for v in vs:
+            if not v.startswith("ldap://"):
+                raise ValidationError("Invalid LDAP URL scheme.")
+
+        return vs
+
+    @field_serializer("urls")
+    def serialize_list(self, urls: List[str]) -> str:
+        return str(json.dumps(urls))
 
     @field_validator("starttls", mode="before")
     @classmethod

@@ -108,7 +108,7 @@ class LdapIntegration:
     @property
     def provider_base_data(self) -> LdapProviderBaseData:
         return LdapProviderBaseData(
-            url=self.ldap_url,
+            urls=[self.ldap_url],
             base_dn=self.base_dn,
             starttls=self.starttls_enabled,
         )
@@ -119,7 +119,7 @@ class LdapIntegration:
             return None
 
         return LdapProviderData(
-            url=self.ldap_url,
+            urls=[self.ldap_url],
             base_dn=self.base_dn,
             bind_dn=f"cn={self._bind_account.cn},ou={self._bind_account.ou},{self.base_dn}",
             bind_password=self._bind_account.password,

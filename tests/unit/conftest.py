@@ -27,7 +27,7 @@ DB_ENDPOINTS = "postgresql-k8s-primary.namespace.svc.cluster.local:5432"
 
 LDAP_CLIENT_APP = "ldap-client"
 LDAP_PROVIDER_DATA = LdapProviderData(
-    url="ldap://ldap.glauth.com",
+    urls=["ldap://ldap.glauth.com"],
     base_dn="dc=glauth,dc=com",
     bind_dn="cn=user,ou=group,dc=glauth,dc=com",
     bind_password="password",
