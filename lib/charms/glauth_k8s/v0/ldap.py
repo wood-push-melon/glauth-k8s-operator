@@ -124,7 +124,7 @@ LDAP related information in order to connect and authenticate to the LDAP server
 
 from functools import wraps
 from string import Template
-from typing import Any, Callable, Literal, Optional, Union
+from typing import Any, Callable, List, Literal, Optional, Union
 
 import ops
 from ops.charm import (
@@ -154,7 +154,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 4
+LIBPATCH = 5
 
 PYDEPS = ["pydantic~=2.5.3"]
 
@@ -432,3 +432,20 @@ class LdapRequirer(Object):
             secret = self.charm.model.get_secret(id=secret_id)
             provider_data["bind_password"] = secret.get_content().get("password")
         return LdapProviderData(**provider_data) if provider_data else None
+
+    def _is_relation_active(self, relation: Relation) -> bool:
+        """Whether the relation is active based on contained data."""
+        try:
+            _ = repr(relation.data)
+            return True
+        except (RuntimeError, ops.ModelError):
+            return False
+
+    @property
+    def relations(self) -> List[Relation]:
+        """The list of Relation instances associated with this relation_name."""
+        return [
+            relation
+            for relation in self.charm.model.relations[self.relation_name]
+            if self._is_relation_active(relation)
+        ]
