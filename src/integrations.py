@@ -3,6 +3,7 @@
 
 import hashlib
 import logging
+import socket
 import subprocess
 from contextlib import suppress
 from dataclasses import dataclass
@@ -97,7 +98,8 @@ class LdapIntegration:
 
     @property
     def ldap_url(self) -> str:
-        return f"ldap://{self._charm.config.get('hostname')}:{GLAUTH_LDAP_PORT}"
+        hostname = self._charm.config.get("hostname") or socket.getfqdn()
+        return f"ldap://{hostname}:{GLAUTH_LDAP_PORT}"
 
     @property
     def base_dn(self) -> str:
