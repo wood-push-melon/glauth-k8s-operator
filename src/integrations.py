@@ -20,7 +20,7 @@ from ops.charm import CharmBase
 from ops.pebble import PathError
 from tenacity import Retrying, retry_if_exception_type, stop_after_attempt, wait_fixed
 
-from configs import DatabaseConfig
+from configs import DatabaseConfig, LdapServerConfig
 from constants import (
     CERTIFICATE_FILE,
     CERTIFICATES_TRANSFER_INTEGRATION_NAME,
@@ -86,6 +86,8 @@ class LdapIntegration:
         self._bind_account: Optional[BindAccount] = None
 
     def load_bind_account(self, user: str, group: str, relation_id: int) -> None:
+        if LdapServerConfig.load(self._charm.ldap_requirer):
+            return self.load_bind_account_from_remote_ldap()
         if not (database_config := DatabaseConfig.load(self._charm.database_requirer)):
             return
 
@@ -95,6 +97,20 @@ class LdapIntegration:
             if not password:
                 password = _reset_account_password(database_config.dsn, user)
             self._bind_account.password = password
+
+    def load_bind_account_from_remote_ldap(self) -> None:
+        ldap_config = LdapServerConfig.load(self._charm.ldap_requirer)
+
+        if not ldap_config or not ldap_config.ldap_servers or len(ldap_config.ldap_servers) < 1:
+            return
+        server = ldap_config.ldap_servers[0]
+        if not isinstance(server, LdapProviderData):
+            return
+
+        bind_dn = {part.split("=")[0]: part.split("=")[1] for part in server.bind_dn.split(",")}
+        self._bind_account = BindAccount(
+            bind_dn.get("cn", ""), bind_dn.get("ou", ""), server.bind_password
+        )
 
     @property
     def ldap_url(self) -> str:
