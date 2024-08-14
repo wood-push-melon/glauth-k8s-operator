@@ -101,15 +101,15 @@ class LdapIntegration:
     def load_bind_account_from_remote_ldap(self) -> None:
         ldap_config = LdapServerConfig.load(self._charm.ldap_requirer)
 
-        if not ldap_config or not ldap_config.ldap_servers or len(ldap_config.ldap_servers) < 1:
-            return
-        server = ldap_config.ldap_servers[0]
-        if not isinstance(server, LdapProviderData):
+        if not ldap_config or not ldap_config.ldap_server:
             return
 
-        bind_dn = {part.split("=")[0]: part.split("=")[1] for part in server.bind_dn.split(",")}
+        bind_dn = {
+            part.split("=")[0]: part.split("=")[1]
+            for part in ldap_config.ldap_server.bind_dn.split(",")
+        }
         self._bind_account = BindAccount(
-            bind_dn.get("cn", ""), bind_dn.get("ou", ""), server.bind_password
+            bind_dn.get("cn", ""), bind_dn.get("ou", ""), ldap_config.ldap_server.bind_password
         )
 
     @property

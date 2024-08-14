@@ -3,7 +3,7 @@
 
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, List, Mapping, Optional
+from typing import Any, Mapping, Optional
 
 from charms.glauth_k8s.v0.ldap import LdapProviderData, LdapRequirer
 from jinja2 import Template
@@ -53,18 +53,12 @@ class DatabaseConfig:
 
 @dataclass
 class LdapServerConfig:
-    ldap_servers: Optional[List[LdapProviderData]] = None
+    ldap_server: Optional[LdapProviderData] = None
 
     @classmethod
     def load(cls, requirer: LdapRequirer) -> Optional["LdapServerConfig"]:
-        if not (ldap_integrations := requirer.relations):
+        if not (ldap_servers := requirer.consume_ldap_relation_data()):
             return None
-
-        ldap_servers = [
-            data
-            for i in ldap_integrations
-            if (data := requirer.consume_ldap_relation_data(relation=i))
-        ]
 
         return LdapServerConfig(ldap_servers)
 
