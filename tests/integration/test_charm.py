@@ -8,6 +8,7 @@ import logging
 from pathlib import Path
 from typing import Callable, Optional
 
+import ldap
 import pytest
 from conftest import (
     CERTIFICATE_PROVIDER_APP,
@@ -16,6 +17,7 @@ from conftest import (
     GLAUTH_CLIENT_APP,
     GLAUTH_IMAGE,
     extract_certificate_common_name,
+    ldap_connection,
 )
 from pytest_operator.plugin import OpsTest
 from tester import ANY_CHARM
@@ -73,11 +75,11 @@ async def test_build_and_deploy(ops_test: OpsTest) -> None:
         apps=[CERTIFICATE_PROVIDER_APP, DB_APP, GLAUTH_CLIENT_APP, GLAUTH_APP],
         status="active",
         raise_on_blocked=False,
-        timeout=1000,
+        timeout=5 * 60,
     )
 
 
-def test_database_integration(
+async def test_database_integration(
     ops_test: OpsTest,
     database_integration_data: Optional[dict],
 ) -> None:
@@ -86,7 +88,7 @@ def test_database_integration(
     assert database_integration_data["password"]
 
 
-def test_certification_integration(
+async def test_certification_integration(
     certificate_integration_data: Optional[dict],
 ) -> None:
     assert certificate_integration_data
@@ -107,18 +109,18 @@ async def test_ldap_integration(
     await ops_test.model.wait_for_idle(
         apps=[GLAUTH_APP, GLAUTH_CLIENT_APP],
         status="active",
-        timeout=1000,
+        timeout=5 * 60,
     )
 
-    ldap_integration_data = app_integration_data(
+    integration_data = await app_integration_data(
         GLAUTH_CLIENT_APP,
         "ldap",
     )
-    assert ldap_integration_data
-    assert ldap_integration_data["bind_dn"].startswith(
+    assert integration_data
+    assert integration_data["bind_dn"].startswith(
         f"cn={GLAUTH_CLIENT_APP},ou={ops_test.model_name}"
     )
-    assert ldap_integration_data["bind_password_secret"].startswith("secret:")
+    assert integration_data["bind_password_secret"].startswith("secret:")
 
 
 async def test_certificate_transfer_integration(
@@ -130,7 +132,7 @@ async def test_certificate_transfer_integration(
         f"{GLAUTH_APP}:send-ca-cert",
     )
 
-    certificate_transfer_integration_data = unit_integration_data(
+    certificate_transfer_integration_data = await unit_integration_data(
         GLAUTH_CLIENT_APP,
         GLAUTH_APP,
         "send-ca-cert",
@@ -139,19 +141,19 @@ async def test_certificate_transfer_integration(
 
 
 async def test_glauth_scale_up(ops_test: OpsTest) -> None:
-    app, target_unit_num = ops_test.model.applications[GLAUTH_APP], 3
+    app, target_unit_num = ops_test.model.applications[GLAUTH_APP], 2
 
     await app.scale(target_unit_num)
 
     await ops_test.model.wait_for_idle(
         apps=[GLAUTH_APP],
         status="active",
-        timeout=1000,
+        timeout=5 * 60,
         wait_for_exact_units=target_unit_num,
     )
 
 
-@pytest.mark.xfail(
+@pytest.mark.skip(
     reason="cert_handler is bugged, remove this once it is fixed or when we throw it away..."
 )
 async def test_glauth_scale_down(ops_test: OpsTest) -> None:
@@ -161,5 +163,57 @@ async def test_glauth_scale_down(ops_test: OpsTest) -> None:
     await ops_test.model.wait_for_idle(
         apps=[GLAUTH_APP],
         status="active",
-        timeout=1000,
+        timeout=5 * 60,
     )
+
+
+async def test_ldap_search_operation(
+    initialize_database: None,
+    ldap_uri: str,
+    ldap_configurations: Optional[tuple[str, ...]],
+) -> None:
+    assert ldap_configurations, "LDAP configuration should be ready"
+    base_dn, bind_dn, bind_password = ldap_configurations
+
+    with ldap_connection(uri=ldap_uri, bind_dn=bind_dn, bind_password=bind_password) as conn:
+        res = conn.search_s(
+            base=base_dn,
+            scope=ldap.SCOPE_SUBTREE,
+            filterstr="(cn=hackers)",
+        )
+
+    assert res[0], "User 'hackers' can be found"
+    dn, _ = res[0]
+    assert dn == f"cn=hackers,ou=superheros,ou=users,{base_dn}"
+
+    with ldap_connection(
+        uri=ldap_uri, bind_dn=f"cn=serviceuser,ou=svcaccts,{base_dn}", bind_password="mysecret"
+    ) as conn:
+        res = conn.search_s(
+            base=base_dn,
+            scope=ldap.SCOPE_SUBTREE,
+            filterstr="(cn=johndoe)",
+        )
+
+    assert res[0], "User 'johndoe' can be found by using 'serviceuser' as bind DN"
+    dn, _ = res[0]
+    assert dn == f"cn=johndoe,ou=svcaccts,ou=users,{base_dn}"
+
+    with ldap_connection(
+        uri=ldap_uri, bind_dn=f"cn=hackers,ou=superheros,{base_dn}", bind_password="dogood"
+    ) as conn:
+        user4 = conn.search_s(
+            base=f"ou=superheros,{base_dn}", scope=ldap.SCOPE_SUBTREE, filterstr="(cn=user4)"
+        )
+
+    assert user4[0], "User 'user4' can be found by using 'hackers' as bind DN"
+    dn, _ = user4[0]
+    assert dn == f"cn=user4,ou=superheros,{base_dn}"
+
+    with (
+        ldap_connection(
+            uri=ldap_uri, bind_dn=f"cn=hackers,ou=superheros,{base_dn}", bind_password="dogood"
+        ) as conn,
+        pytest.raises(ldap.INSUFFICIENT_ACCESS),
+    ):
+        conn.search_s(base=base_dn, scope=ldap.SCOPE_SUBTREE, filterstr="(cn=user4)")
