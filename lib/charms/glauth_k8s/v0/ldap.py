@@ -45,7 +45,7 @@ class RequirerCharm(CharmBase):
     def _on_ldap_ready(self, event: LdapReadyEvent) -> None:
         # Consume the LDAP related information
         ldap_data = self.ldap_requirer.consume_ldap_relation_data(
-            event.relation.id,
+            relation=event.relation,
         )
 
         # Configure the LDAP requirer charm
@@ -122,9 +122,10 @@ situations, which are listed below:
 LDAP related information in order to connect and authenticate to the LDAP server
 """
 
+import json
 from functools import wraps
 from string import Template
-from typing import Any, Callable, Literal, Optional, Union
+from typing import Any, Callable, List, Literal, Optional, Union
 
 import ops
 from ops.charm import (
@@ -154,7 +155,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 4
+LIBPATCH = 5
 
 PYDEPS = ["pydantic~=2.5.3"]
 
@@ -227,17 +228,27 @@ class Secret:
 
 
 class LdapProviderBaseData(BaseModel):
-    url: str = Field(frozen=True)
+    urls: List[str] = Field(frozen=True)
     base_dn: str = Field(frozen=True)
     starttls: StrictBool = Field(frozen=True)
 
-    @field_validator("url")
+    @field_validator("urls", mode="before")
     @classmethod
-    def validate_ldap_url(cls, v: str) -> str:
-        if not v.startswith("ldap://"):
-            raise ValidationError("Invalid LDAP URL scheme.")
+    def validate_ldap_urls(cls, vs: List[str] | str) -> List[str]:
+        if isinstance(vs, str):
+            vs = json.loads(vs)
+            if isinstance(vs, str):
+                vs = [vs]
 
-        return v
+        for v in vs:
+            if not v.startswith("ldap://"):
+                raise ValidationError("Invalid LDAP URL scheme.")
+
+        return vs
+
+    @field_serializer("urls")
+    def serialize_list(self, urls: List[str]) -> str:
+        return str(json.dumps(urls))
 
     @field_validator("starttls", mode="before")
     @classmethod
@@ -419,10 +430,12 @@ class LdapRequirer(Object):
     def consume_ldap_relation_data(
         self,
         /,
+        relation: Optional[Relation] = None,
         relation_id: Optional[int] = None,
     ) -> Optional[LdapProviderData]:
         """An API for the requirer charm to consume the LDAP related information in the application databag."""
-        relation = self.charm.model.get_relation(self._relation_name, relation_id)
+        if not relation:
+            relation = self.charm.model.get_relation(self._relation_name, relation_id)
 
         if not relation:
             return None
@@ -432,3 +445,55 @@ class LdapRequirer(Object):
             secret = self.charm.model.get_secret(id=secret_id)
             provider_data["bind_password"] = secret.get_content().get("password")
         return LdapProviderData(**provider_data) if provider_data else None
+
+    def _is_relation_active(self, relation: Relation) -> bool:
+        """Whether the relation is active based on contained data."""
+        try:
+            _ = repr(relation.data)
+            return True
+        except (RuntimeError, ops.ModelError):
+            return False
+
+    @property
+    def relations(self) -> List[Relation]:
+        """The list of Relation instances associated with this relation_name."""
+        return [
+            relation
+            for relation in self.charm.model.relations[self._relation_name]
+            if self._is_relation_active(relation)
+        ]
+
+    def _ready_for_relation(self, relation: Relation) -> bool:
+        if not relation.app:
+            return False
+
+        return "urls" in relation.data[relation.app] and "bind_dn" in relation.data[relation.app]
+
+    def ready(self, relation_id: Optional[int] = None) -> bool:
+        """Check if the resource has been created.
+
+        This function can be used to check if the Provider answered with data in the charm code
+        when outside an event callback.
+
+        Args:
+            relation_id (int, optional): When provided the check is done only for the relation id
+                provided, otherwise the check is done for all relations
+
+        Returns:
+            True or False
+
+        Raises:
+            IndexError: If relation_id is provided but that relation does not exist
+        """
+        if relation_id is None:
+            return (
+                all(self._ready_for_relation(relation) for relation in self.relations)
+                if self.relations
+                else False
+            )
+
+        try:
+            relation = [relation for relation in self.relations if relation.id == relation_id][0]
+            return self._ready_for_relation(relation)
+        except IndexError:
+            raise IndexError(f"relation id {relation_id} cannot be accessed")

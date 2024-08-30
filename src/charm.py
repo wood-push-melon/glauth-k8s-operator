@@ -14,7 +14,12 @@ from charms.data_platform_libs.v0.data_interfaces import (
     DatabaseEndpointsChangedEvent,
     DatabaseRequires,
 )
-from charms.glauth_k8s.v0.ldap import LdapProvider, LdapRequestedEvent
+from charms.glauth_k8s.v0.ldap import (
+    LdapProvider,
+    LdapReadyEvent,
+    LdapRequestedEvent,
+    LdapRequirer,
+)
 from charms.glauth_utils.v0.glauth_auxiliary import AuxiliaryProvider, AuxiliaryRequestedEvent
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.loki_k8s.v0.loki_push_api import LogProxyConsumer, PromtailDigestError
@@ -35,7 +40,7 @@ from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
 from ops.pebble import ChangeError
 
-from configs import ConfigFile, DatabaseConfig, StartTLSConfig, pebble_layer
+from configs import ConfigFile, DatabaseConfig, LdapServerConfig, StartTLSConfig, pebble_layer
 from constants import (
     CERTIFICATES_INTEGRATION_NAME,
     CERTIFICATES_TRANSFER_INTEGRATION_NAME,
@@ -43,6 +48,7 @@ from constants import (
     GLAUTH_CONFIG_DIR,
     GLAUTH_LDAP_PORT,
     GRAFANA_DASHBOARD_INTEGRATION_NAME,
+    LDAP_CLIENT_INTEGRATION_NAME,
     LOG_DIR,
     LOG_FILE,
     LOKI_API_PUSH_INTEGRATION_NAME,
@@ -59,11 +65,14 @@ from integrations import (
 from kubernetes_resource import ConfigMapResource, StatefulSetResource
 from utils import (
     after_config_updated,
+    backend_integration_not_exists,
+    backend_not_ready,
     block_when,
     container_not_connected,
     database_not_ready,
     integration_not_exists,
     leader_unit,
+    service_not_ready,
     tls_certificates_not_ready,
     wait_when,
 )
@@ -94,6 +103,12 @@ class GLAuthCharm(CharmBase):
         self.framework.observe(
             self.ldap_provider.on.ldap_requested,
             self._on_ldap_requested,
+        )
+
+        self.ldap_requirer = LdapRequirer(self, LDAP_CLIENT_INTEGRATION_NAME)
+        self.framework.observe(
+            self.ldap_requirer.on.ldap_ready,
+            self._on_ldap_ready,
         )
 
         self.auxiliary_provider = AuxiliaryProvider(self)
@@ -162,18 +177,19 @@ class GLAuthCharm(CharmBase):
             )
 
     @block_when(
-        integration_not_exists(DATABASE_INTEGRATION_NAME),
+        backend_integration_not_exists,
         integration_not_exists(CERTIFICATES_INTEGRATION_NAME),
     )
     @wait_when(
         container_not_connected,
-        database_not_ready,
+        backend_not_ready,
         tls_certificates_not_ready,
     )
     def _handle_event_update(self, event: HookEvent) -> None:
         self.unit.status = MaintenanceStatus("Configuring GLAuth container")
 
         self.config_file.database_config = DatabaseConfig.load(self.database_requirer)
+        self.config_file.ldap_servers_config = LdapServerConfig.load(self.ldap_requirer)
 
         self._update_glauth_config()
         self._container.add_layer(WORKLOAD_CONTAINER, pebble_layer, combine=True)
@@ -245,10 +261,18 @@ class GLAuthCharm(CharmBase):
             self._container.make_dir(path=LOG_DIR, make_parents=True)
             logger.debug(f"Created logging directory {LOG_DIR}")
 
+        try:
+            self._certs_integration.update_certificates()
+        except CertificatesError:
+            self.unit.status = BlockedStatus(
+                "Failed to update the TLS certificates, please check the logs"
+            )
+            return
+
         self._handle_event_update(event)
 
     @leader_unit
-    @wait_when(database_not_ready)
+    @wait_when(database_not_ready, service_not_ready)
     def _on_ldap_requested(self, event: LdapRequestedEvent) -> None:
         if not (requirer_data := event.data):
             logger.error(f"The LDAP requirer {event.app.name} does not provide necessary data.")
@@ -264,6 +288,9 @@ class GLAuthCharm(CharmBase):
             self._ldap_integration.provider_data,
             relation_id=event.relation.id,
         )
+
+    def _on_ldap_ready(self, event: LdapReadyEvent) -> None:
+        self._handle_event_update(event)
 
     @wait_when(database_not_ready)
     def _on_auxiliary_requested(self, event: AuxiliaryRequestedEvent) -> None:

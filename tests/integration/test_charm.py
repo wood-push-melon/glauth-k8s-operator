@@ -16,6 +16,7 @@ from conftest import (
     GLAUTH_APP,
     GLAUTH_CLIENT_APP,
     GLAUTH_IMAGE,
+    GLAUTH_PROXY,
     extract_certificate_common_name,
     ldap_connection,
 )
@@ -67,12 +68,22 @@ async def test_build_and_deploy(ops_test: OpsTest) -> None:
         trust=True,
         series="jammy",
     )
+    await ops_test.model.deploy(
+        str(charm_path),
+        resources={"oci-image": GLAUTH_IMAGE},
+        application_name=GLAUTH_PROXY,
+        config={"starttls_enabled": True},
+        trust=True,
+        series="jammy",
+    )
 
     await ops_test.model.integrate(GLAUTH_APP, CERTIFICATE_PROVIDER_APP)
+    await ops_test.model.integrate(GLAUTH_PROXY, CERTIFICATE_PROVIDER_APP)
     await ops_test.model.integrate(GLAUTH_APP, DB_APP)
+    await ops_test.model.integrate(f"{GLAUTH_PROXY}:ldap-client", f"{GLAUTH_APP}:ldap")
 
     await ops_test.model.wait_for_idle(
-        apps=[CERTIFICATE_PROVIDER_APP, DB_APP, GLAUTH_CLIENT_APP, GLAUTH_APP],
+        apps=[CERTIFICATE_PROVIDER_APP, DB_APP, GLAUTH_CLIENT_APP, GLAUTH_APP, GLAUTH_PROXY],
         status="active",
         raise_on_blocked=False,
         timeout=5 * 60,
@@ -121,6 +132,27 @@ async def test_ldap_integration(
         f"cn={GLAUTH_CLIENT_APP},ou={ops_test.model_name}"
     )
     assert integration_data["bind_password_secret"].startswith("secret:")
+
+
+async def test_ldap_client_integration(
+    ops_test: OpsTest,
+    app_integration_data: Callable,
+) -> None:
+    await ops_test.model.wait_for_idle(
+        apps=[GLAUTH_APP, GLAUTH_PROXY],
+        status="active",
+        timeout=1000,
+    )
+
+    ldap_integration_data = app_integration_data(
+        GLAUTH_PROXY,
+        "ldap-client",
+    )
+    assert ldap_integration_data
+    assert ldap_integration_data["bind_dn"].startswith(
+        f"cn={GLAUTH_PROXY},ou={ops_test.model_name}"
+    )
+    assert ldap_integration_data["bind_password_secret"].startswith("secret:")
 
 
 async def test_certificate_transfer_integration(

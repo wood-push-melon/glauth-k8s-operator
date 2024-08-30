@@ -20,6 +20,7 @@ from constants import GLAUTH_LDAP_PORT
 METADATA = yaml.safe_load(Path("./charmcraft.yaml").read_text())
 CERTIFICATE_PROVIDER_APP = "self-signed-certificates"
 DB_APP = "postgresql-k8s"
+GLAUTH_PROXY = "ldap-proxy"
 GLAUTH_APP = METADATA["name"]
 GLAUTH_IMAGE = METADATA["resources"]["oci-image"]["upstream-source"]
 GLAUTH_CLIENT_APP = "any-charm"

@@ -3,6 +3,7 @@
 
 import hashlib
 import logging
+import socket
 import subprocess
 from contextlib import suppress
 from dataclasses import dataclass
@@ -19,7 +20,7 @@ from ops.charm import CharmBase
 from ops.pebble import PathError
 from tenacity import Retrying, retry_if_exception_type, stop_after_attempt, wait_fixed
 
-from configs import DatabaseConfig
+from configs import DatabaseConfig, LdapServerConfig
 from constants import (
     CERTIFICATE_FILE,
     CERTIFICATES_TRANSFER_INTEGRATION_NAME,
@@ -85,7 +86,11 @@ class LdapIntegration:
         self._bind_account: Optional[BindAccount] = None
 
     def load_bind_account(self, user: str, group: str, relation_id: int) -> None:
-        database_config = DatabaseConfig.load(self._charm.database_requirer)
+        if LdapServerConfig.load(self._charm.ldap_requirer):
+            return self.load_bind_account_from_remote_ldap()
+        if not (database_config := DatabaseConfig.load(self._charm.database_requirer)):
+            return
+
         self._bind_account = _create_bind_account(database_config.dsn, user, group)
         if not self._bind_account.password:
             password = self._charm.ldap_provider.get_bind_password(relation_id)
@@ -93,9 +98,24 @@ class LdapIntegration:
                 password = _reset_account_password(database_config.dsn, user)
             self._bind_account.password = password
 
+    def load_bind_account_from_remote_ldap(self) -> None:
+        ldap_config = LdapServerConfig.load(self._charm.ldap_requirer)
+
+        if not ldap_config or not ldap_config.ldap_server:
+            return
+
+        bind_dn = {
+            part.split("=")[0]: part.split("=")[1]
+            for part in ldap_config.ldap_server.bind_dn.split(",")
+        }
+        self._bind_account = BindAccount(
+            bind_dn.get("cn", ""), bind_dn.get("ou", ""), ldap_config.ldap_server.bind_password
+        )
+
     @property
     def ldap_url(self) -> str:
-        return f"ldap://{self._charm.config.get('hostname')}:{GLAUTH_LDAP_PORT}"
+        hostname = self._charm.config.get("hostname") or socket.getfqdn()
+        return f"ldap://{hostname}:{GLAUTH_LDAP_PORT}"
 
     @property
     def base_dn(self) -> str:
@@ -108,7 +128,7 @@ class LdapIntegration:
     @property
     def provider_base_data(self) -> LdapProviderBaseData:
         return LdapProviderBaseData(
-            url=self.ldap_url,
+            urls=[self.ldap_url],
             base_dn=self.base_dn,
             starttls=self.starttls_enabled,
         )
@@ -119,7 +139,7 @@ class LdapIntegration:
             return None
 
         return LdapProviderData(
-            url=self.ldap_url,
+            urls=[self.ldap_url],
             base_dn=self.base_dn,
             bind_dn=f"cn={self._bind_account.cn},ou={self._bind_account.ou},{self.base_dn}",
             bind_password=self._bind_account.password,
@@ -134,7 +154,8 @@ class AuxiliaryIntegration:
 
     @property
     def auxiliary_data(self) -> AuxiliaryData:
-        database_config = DatabaseConfig.load(self._charm.database_requirer)
+        if not (database_config := DatabaseConfig.load(self._charm.database_requirer)):
+            return AuxiliaryData()
 
         return AuxiliaryData(
             database=database_config.database,
