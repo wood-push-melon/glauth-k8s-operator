@@ -36,7 +36,7 @@ jobs:
           bootstrap-options: '--agent-version=3.4.0'
 
       - name: Run integration tests
-        run: tox -e integration -- --model testing
+        run: tox -e build-prerequisites,integration -- --model testing
 
       - name: Get contexts
         run: kubectl config view
