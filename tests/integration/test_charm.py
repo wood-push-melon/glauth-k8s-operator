@@ -144,7 +144,7 @@ async def test_ldap_client_integration(
         timeout=1000,
     )
 
-    ldap_integration_data = app_integration_data(
+    ldap_integration_data = await app_integration_data(
         GLAUTH_PROXY,
         "ldap-client",
     )
