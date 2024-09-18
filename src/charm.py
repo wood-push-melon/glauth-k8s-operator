@@ -22,7 +22,7 @@ from charms.glauth_k8s.v0.ldap import (
 )
 from charms.glauth_utils.v0.glauth_auxiliary import AuxiliaryProvider, AuxiliaryRequestedEvent
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
-from charms.loki_k8s.v0.loki_push_api import LogProxyConsumer, PromtailDigestError
+from charms.loki_k8s.v1.loki_push_api import LogForwarder
 from charms.observability_libs.v0.kubernetes_service_patch import KubernetesServicePatch
 from charms.observability_libs.v1.cert_handler import CertChanged
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
@@ -50,7 +50,6 @@ from constants import (
     GRAFANA_DASHBOARD_INTEGRATION_NAME,
     LDAP_CLIENT_INTEGRATION_NAME,
     LOG_DIR,
-    LOG_FILE,
     LOKI_API_PUSH_INTEGRATION_NAME,
     PROMETHEUS_SCRAPE_INTEGRATION_NAME,
     WORKLOAD_CONTAINER,
@@ -131,12 +130,7 @@ class GLAuthCharm(CharmBase):
 
         self.service_patcher = KubernetesServicePatch(self, [("ldap", GLAUTH_LDAP_PORT)])
 
-        self.loki_consumer = LogProxyConsumer(
-            self,
-            log_files=[str(LOG_FILE)],
-            relation_name=LOKI_API_PUSH_INTEGRATION_NAME,
-            container_name=WORKLOAD_CONTAINER,
-        )
+        self._log_forwarder = LogForwarder(self, relation_name=LOKI_API_PUSH_INTEGRATION_NAME)
         self.metrics_endpoint = MetricsEndpointProvider(
             self, relation_name=PROMETHEUS_SCRAPE_INTEGRATION_NAME
         )
@@ -153,10 +147,6 @@ class GLAuthCharm(CharmBase):
         )
         self.framework.observe(
             self.database_requirer.on.endpoints_changed, self._on_database_changed
-        )
-        self.framework.observe(
-            self.loki_consumer.on.promtail_digest_error,
-            self._on_promtail_error,
         )
 
         self.config_file = ConfigFile(
@@ -322,9 +312,6 @@ class GLAuthCharm(CharmBase):
         self._certs_transfer_integration.transfer_certificates(
             self._certs_integration.cert_data, event.relation.id
         )
-
-    def _on_promtail_error(self, event: PromtailDigestError) -> None:
-        logger.error(event.message)
 
 
 if __name__ == "__main__":
