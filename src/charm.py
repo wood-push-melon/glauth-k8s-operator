@@ -49,7 +49,6 @@ from constants import (
     GLAUTH_LDAP_PORT,
     GRAFANA_DASHBOARD_INTEGRATION_NAME,
     LDAP_CLIENT_INTEGRATION_NAME,
-    LOG_DIR,
     LOKI_API_PUSH_INTEGRATION_NAME,
     PROMETHEUS_SCRAPE_INTEGRATION_NAME,
     WORKLOAD_CONTAINER,
@@ -247,10 +246,6 @@ class GLAuthCharm(CharmBase):
 
     @wait_when(container_not_connected)
     def __on_pebble_ready(self, event: PebbleReadyEvent) -> None:
-        if not self._container.isdir(LOG_DIR):
-            self._container.make_dir(path=LOG_DIR, make_parents=True)
-            logger.debug(f"Created logging directory {LOG_DIR}")
-
         try:
             self._certs_integration.update_certificates()
         except CertificatesError:
