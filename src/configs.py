@@ -11,7 +11,6 @@ from ops.pebble import Layer
 
 from constants import (
     GLAUTH_COMMANDS,
-    LOG_FILE,
     POSTGRESQL_DSN_TEMPLATE,
     SERVER_CERT,
     SERVER_KEY,
@@ -111,10 +110,7 @@ pebble_layer = Layer({
             "override": "replace",
             "summary": "GLAuth Operator layer",
             "startup": "disabled",
-            "command": '/bin/sh -c "{} 2>&1 | tee {}"'.format(
-                GLAUTH_COMMANDS,
-                LOG_FILE,
-            ),
+            "command": GLAUTH_COMMANDS,
         }
     },
 })

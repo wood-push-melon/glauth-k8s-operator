@@ -17,9 +17,6 @@ GLAUTH_CONFIG_FILE = GLAUTH_CONFIG_DIR / "glauth.cfg"
 GLAUTH_COMMANDS = f"glauth -c {GLAUTH_CONFIG_FILE}"
 GLAUTH_LDAP_PORT = 3893
 
-LOG_DIR = PurePath("/var/log")
-LOG_FILE = LOG_DIR / "glauth.log"
-
 WORKLOAD_CONTAINER = "glauth"
 WORKLOAD_SERVICE = "glauth"
 
