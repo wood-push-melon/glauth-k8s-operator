@@ -2,6 +2,7 @@
 # See LICENSE file for licensing details.
 
 import functools
+import re
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Callable, Optional
@@ -24,6 +25,7 @@ GLAUTH_PROXY = "ldap-proxy"
 GLAUTH_APP = METADATA["name"]
 GLAUTH_IMAGE = METADATA["resources"]["oci-image"]["upstream-source"]
 GLAUTH_CLIENT_APP = "any-charm"
+JUJU_SECRET_ID_REGEX = re.compile(r"secret:(?://[a-f0-9-]+/)?(?P<secret_id>[a-zA-Z0-9]+)")
 
 
 @contextmanager
@@ -129,8 +131,10 @@ async def ldap_configurations(
     bind_dn = ldap_integration_data["bind_dn"]
     bind_password_secret: str = ldap_integration_data["bind_password_secret"]
 
-    prefix, _, secret_id = bind_password_secret.partition(":")
-    bind_password = await get_secret(ops_test, secret_id or prefix)
+    matched = JUJU_SECRET_ID_REGEX.match(bind_password_secret)
+    assert matched is not None, "bind password secret id should be valid"
+
+    bind_password = await get_secret(ops_test, matched.group("secret_id"))
 
     return base_dn, bind_dn, bind_password["content"]["password"]
 
