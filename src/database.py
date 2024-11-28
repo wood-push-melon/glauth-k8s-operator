@@ -55,7 +55,7 @@ class Operation:
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         if exc_type:
             logger.error(
-                f"The database operation failed. The exception " f"{exc_type} raised: {exc_val}"
+                f"The database operation failed. The exception {exc_type} raised: {exc_val}"
             )
             self._session.rollback()
         else:
