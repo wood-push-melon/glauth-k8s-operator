@@ -155,9 +155,9 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 6
+LIBPATCH = 7
 
-PYDEPS = ["pydantic~=2.5.3"]
+PYDEPS = ["pydantic>=2.5.3"]
 
 DEFAULT_RELATION_NAME = "ldap"
 BIND_ACCOUNT_SECRET_LABEL_TEMPLATE = Template("relation-$relation_id-bind-account-secret")
