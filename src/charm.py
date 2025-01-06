@@ -26,6 +26,7 @@ from charms.loki_k8s.v1.loki_push_api import LogForwarder
 from charms.observability_libs.v0.kubernetes_service_patch import KubernetesServicePatch
 from charms.observability_libs.v1.cert_handler import CertChanged
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
+from charms.traefik_k8s.v1.ingress_per_unit import IngressPerUnitRequirer
 from lightkube import Client
 from ops.charm import (
     CharmBase,
@@ -48,6 +49,7 @@ from constants import (
     GLAUTH_CONFIG_DIR,
     GLAUTH_LDAP_PORT,
     GRAFANA_DASHBOARD_INTEGRATION_NAME,
+    INGRESS_PER_UNIT_INTEGRATION_NAME,
     LDAP_CLIENT_INTEGRATION_NAME,
     LOKI_API_PUSH_INTEGRATION_NAME,
     PROMETHEUS_SCRAPE_INTEGRATION_NAME,
@@ -95,6 +97,18 @@ class GLAuthCharm(CharmBase):
             relation_name=DATABASE_INTEGRATION_NAME,
             database_name=self._db_name,
             extra_user_roles="SUPERUSER",
+        )
+
+        # FIXME: https://github.com/canonical/traefik-k8s-operator/issues/406 -
+        #   `glauth-k8s` can only scale to one unit when integrated with
+        #   `traefik-k8s`. `traefik-k8s` will become inactive if more than
+        #   one `glauth-k8s` units are deployed because `traefik-k8s` attempts
+        #   to assign them all the same LoadBalancer IP address.
+        self.ingress_per_unit = IngressPerUnitRequirer(
+            self,
+            INGRESS_PER_UNIT_INTEGRATION_NAME,
+            port=GLAUTH_LDAP_PORT,
+            mode="tcp",
         )
 
         self.ldap_provider = LdapProvider(self)

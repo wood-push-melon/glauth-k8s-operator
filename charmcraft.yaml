@@ -35,6 +35,10 @@ requires:
     interface: tls-certificates
     limit: 1
     optional: true
+  ingress:
+    interface: ingress_per_unit
+    limit: 1
+    optional: true
   ldap-client:
     description: |
       Use another ldap server as a backend
