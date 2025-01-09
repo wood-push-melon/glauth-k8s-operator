@@ -141,18 +141,18 @@ async def test_ldap_client_integration(
     await ops_test.model.wait_for_idle(
         apps=[GLAUTH_APP, GLAUTH_PROXY],
         status="active",
-        timeout=1000,
+        timeout=5 * 60,
     )
 
-    ldap_integration_data = await app_integration_data(
+    ldap_client_integration_data = await app_integration_data(
         GLAUTH_PROXY,
         "ldap-client",
     )
-    assert ldap_integration_data
-    assert ldap_integration_data["bind_dn"].startswith(
+    assert ldap_client_integration_data
+    assert ldap_client_integration_data["bind_dn"].startswith(
         f"cn={GLAUTH_PROXY},ou={ops_test.model_name}"
     )
-    assert ldap_integration_data["bind_password_secret"].startswith("secret:")
+    assert ldap_client_integration_data["bind_password_secret"].startswith("secret:")
 
 
 async def test_certificate_transfer_integration(
@@ -164,12 +164,26 @@ async def test_certificate_transfer_integration(
         f"{GLAUTH_APP}:send-ca-cert",
     )
 
+    await ops_test.model.wait_for_idle(
+        apps=[GLAUTH_APP, GLAUTH_CLIENT_APP],
+        status="active",
+        timeout=5 * 60,
+    )
+
     certificate_transfer_integration_data = await unit_integration_data(
         GLAUTH_CLIENT_APP,
         GLAUTH_APP,
         "send-ca-cert",
     )
-    assert certificate_transfer_integration_data
+    assert certificate_transfer_integration_data, "Certificate transfer integration data is empty."
+
+    for key in ("ca", "certificate", "chain"):
+        assert (
+            key in certificate_transfer_integration_data
+        ), f"Missing '{key}' in certificate transfer integration data."
+
+    chain = certificate_transfer_integration_data["chain"]
+    assert isinstance(json.loads(chain), list), "Invalid certificate chain."
 
 
 async def test_glauth_scale_up(ops_test: OpsTest) -> None:

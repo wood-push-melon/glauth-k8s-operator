@@ -171,7 +171,7 @@ class AuxiliaryIntegration:
 @dataclass
 class CertificateData:
     ca_cert: Optional[str] = None
-    ca_chain: Optional[str] = None
+    ca_chain: Optional[list[str]] = None
     cert: Optional[str] = None
 
 
@@ -204,8 +204,9 @@ class CertificatesIntegration:
         return self.cert_handler.server_cert
 
     @property
-    def _ca_chain(self) -> Optional[str]:
-        return self.cert_handler.chain
+    def _ca_chain(self) -> Optional[list[str]]:
+        chain = self.cert_handler.chain
+        return chain.split("\n\n") if chain else None
 
     @property
     def cert_data(self) -> CertificateData:
