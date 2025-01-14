@@ -135,7 +135,7 @@ from ops.charm import (
     RelationCreatedEvent,
     RelationEvent,
 )
-from ops.framework import EventSource, Object, ObjectEvents
+from ops.framework import EventSource, Handle, Object, ObjectEvents
 from ops.model import Relation, SecretNotFoundError
 from pydantic import (
     BaseModel,
@@ -155,7 +155,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 7
+LIBPATCH = 8
 
 PYDEPS = ["pydantic>=2.5.3"]
 
@@ -279,6 +279,9 @@ class LdapRequirerData(BaseModel):
 
 class LdapRequestedEvent(RelationEvent):
     """An event emitted when the LDAP integration is built."""
+
+    def __init__(self, handle: Handle, relation: Relation) -> None:
+        super().__init__(handle, relation, relation.app)
 
     @property
     def data(self) -> Optional[LdapRequirerData]:
