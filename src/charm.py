@@ -28,6 +28,7 @@ from charms.observability_libs.v1.cert_handler import CertChanged
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from charms.traefik_k8s.v1.ingress_per_unit import IngressPerUnitRequirer
 from lightkube import Client
+from ops import main
 from ops.charm import (
     CharmBase,
     ConfigChangedEvent,
@@ -37,7 +38,6 @@ from ops.charm import (
     RelationJoinedEvent,
     RemoveEvent,
 )
-from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
 from ops.pebble import ChangeError
 
@@ -276,7 +276,7 @@ class GLAuthCharm(CharmBase):
     @wait_when(database_not_ready, service_not_ready)
     def _on_ldap_requested(self, event: LdapRequestedEvent) -> None:
         if not (requirer_data := event.data):
-            logger.error(f"The LDAP requirer {event.app.name} does not provide necessary data.")
+            logger.warning(f"The LDAP requirer {event.app.name} does not provide necessary data.")
             return
 
         self._ldap_integration.load_bind_account(
