@@ -16,16 +16,17 @@ from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from pytest_operator.plugin import OpsTest
 
-from constants import GLAUTH_LDAP_PORT
-
 METADATA = yaml.safe_load(Path("./charmcraft.yaml").read_text())
+TRAEFIK_CHARM = "traefik-k8s"
 CERTIFICATE_PROVIDER_APP = "self-signed-certificates"
 DB_APP = "postgresql-k8s"
 GLAUTH_PROXY = "ldap-proxy"
 GLAUTH_APP = METADATA["name"]
 GLAUTH_IMAGE = METADATA["resources"]["oci-image"]["upstream-source"]
 GLAUTH_CLIENT_APP = "any-charm"
+INGRESS_APP = "ingress"
 JUJU_SECRET_ID_REGEX = re.compile(r"secret:(?://[a-f0-9-]+/)?(?P<secret_id>[a-zA-Z0-9]+)")
+INGRESS_URL_REGEX = re.compile(r"url:\s*(?P<ingress_url>\d{1,3}(?:\.\d{1,3}){3}:\d+)")
 
 
 @contextmanager
@@ -45,6 +46,15 @@ def extract_certificate_common_name(certificate: str) -> Optional[str]:
         return None
 
     return rdns[0].rfc4514_string()
+
+
+def extract_certificate_sans(certificate: str) -> list[str]:
+    cert_data = certificate.encode()
+    cert = x509.load_pem_x509_certificate(cert_data, default_backend())
+    sans = cert.extensions.get_extension_for_class(x509.SubjectAlternativeName)
+    domains = sans.value.get_values_for_type(x509.DNSName)
+    ips = [str(ip) for ip in sans.value.get_values_for_type(x509.IPAddress)]
+    return domains + ips
 
 
 async def get_secret(ops_test: OpsTest, secret_id: str) -> dict:
@@ -121,6 +131,32 @@ async def certificate_integration_data(app_integration_data: Callable) -> Option
 
 
 @pytest_asyncio.fixture
+async def ingress_per_unit_integration_data(app_integration_data: Callable) -> Optional[dict]:
+    return await app_integration_data(GLAUTH_APP, "ingress")
+
+
+@pytest_asyncio.fixture
+async def ingress_url(ingress_per_unit_integration_data: Optional[dict]) -> Optional[str]:
+    if not ingress_per_unit_integration_data:
+        return None
+
+    ingress = ingress_per_unit_integration_data["ingress"]
+    matched = INGRESS_URL_REGEX.search(ingress)
+    assert matched is not None, "ingress url not found in ingress per unit integration data"
+
+    return matched.group("ingress_url")
+
+
+@pytest_asyncio.fixture
+async def ingress_ip(ingress_url: Optional[str]) -> Optional[str]:
+    if not ingress_url:
+        return None
+
+    ingress_ip, *_ = ingress_url.rsplit(sep=":", maxsplit=1)
+    return ingress_ip
+
+
+@pytest_asyncio.fixture
 async def ldap_configurations(
     ops_test: OpsTest, ldap_integration_data: Optional[dict]
 ) -> Optional[tuple[str, ...]]:
@@ -142,12 +178,6 @@ async def ldap_configurations(
 async def unit_address(ops_test: OpsTest, *, app_name: str, unit_num: int = 0) -> str:
     status = await ops_test.model.get_status()
     return status["applications"][app_name]["units"][f"{app_name}/{unit_num}"]["address"]
-
-
-@pytest_asyncio.fixture
-async def ldap_uri(ops_test: OpsTest) -> str:
-    address = await unit_address(ops_test, app_name=GLAUTH_APP)
-    return f"ldap://{address}:{GLAUTH_LDAP_PORT}"
 
 
 @pytest_asyncio.fixture

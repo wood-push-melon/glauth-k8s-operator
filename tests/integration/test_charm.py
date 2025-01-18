@@ -17,7 +17,10 @@ from conftest import (
     GLAUTH_CLIENT_APP,
     GLAUTH_IMAGE,
     GLAUTH_PROXY,
+    INGRESS_APP,
+    TRAEFIK_CHARM,
     extract_certificate_common_name,
+    extract_certificate_sans,
     ldap_connection,
 )
 from pytest_operator.plugin import OpsTest
@@ -57,6 +60,12 @@ async def test_build_and_deploy(ops_test: OpsTest) -> None:
                 "python-packages": "pydantic ~= 2.0\njsonschema",
             },
         ),
+        ops_test.model.deploy(
+            TRAEFIK_CHARM,
+            application_name=INGRESS_APP,
+            channel="latest/edge",
+            trust=True,
+        ),
     )
 
     charm_path = await ops_test.build_charm(".")
@@ -81,9 +90,17 @@ async def test_build_and_deploy(ops_test: OpsTest) -> None:
     await ops_test.model.integrate(GLAUTH_PROXY, CERTIFICATE_PROVIDER_APP)
     await ops_test.model.integrate(GLAUTH_APP, DB_APP)
     await ops_test.model.integrate(f"{GLAUTH_PROXY}:ldap-client", f"{GLAUTH_APP}:ldap")
+    await ops_test.model.integrate(f"{GLAUTH_APP}:ingress", f"{INGRESS_APP}:ingress-per-unit")
 
     await ops_test.model.wait_for_idle(
-        apps=[CERTIFICATE_PROVIDER_APP, DB_APP, GLAUTH_CLIENT_APP, GLAUTH_APP, GLAUTH_PROXY],
+        apps=[
+            CERTIFICATE_PROVIDER_APP,
+            DB_APP,
+            GLAUTH_CLIENT_APP,
+            GLAUTH_APP,
+            GLAUTH_PROXY,
+            INGRESS_APP,
+        ],
         status="active",
         raise_on_blocked=False,
         timeout=5 * 60,
@@ -99,13 +116,19 @@ async def test_database_integration(
     assert database_integration_data["password"]
 
 
+async def test_ingress_per_unit_integration(ingress_url: Optional[str]) -> None:
+    assert ingress_url, "Ingress url not found in the ingress-per-unit integration"
+
+
 async def test_certification_integration(
     certificate_integration_data: Optional[dict],
+    ingress_ip: Optional[str],
 ) -> None:
     assert certificate_integration_data
     certificates = json.loads(certificate_integration_data["certificates"])
     certificate = certificates[0]["certificate"]
     assert "CN=ldap.glauth.com" == extract_certificate_common_name(certificate)
+    assert ingress_ip in extract_certificate_sans(certificate)
 
 
 async def test_ldap_integration(
@@ -138,12 +161,6 @@ async def test_ldap_client_integration(
     ops_test: OpsTest,
     app_integration_data: Callable,
 ) -> None:
-    await ops_test.model.wait_for_idle(
-        apps=[GLAUTH_APP, GLAUTH_PROXY],
-        status="active",
-        timeout=5 * 60,
-    )
-
     ldap_client_integration_data = await app_integration_data(
         GLAUTH_PROXY,
         "ldap-client",
@@ -158,6 +175,7 @@ async def test_ldap_client_integration(
 async def test_certificate_transfer_integration(
     ops_test: OpsTest,
     unit_integration_data: Callable,
+    ingress_ip: Optional[str],
 ) -> None:
     await ops_test.model.integrate(
         f"{GLAUTH_CLIENT_APP}:send-ca-cert",
@@ -185,7 +203,14 @@ async def test_certificate_transfer_integration(
     chain = certificate_transfer_integration_data["chain"]
     assert isinstance(json.loads(chain), list), "Invalid certificate chain."
 
+    certificate = certificate_transfer_integration_data["certificate"]
+    assert "CN=ldap.glauth.com" == extract_certificate_common_name(certificate)
+    assert ingress_ip in extract_certificate_sans(certificate)
 
+
+@pytest.mark.skip(
+    reason="glauth cannot scale up due to the traefik-k8s issue: https://github.com/canonical/traefik-k8s-operator/issues/406",
+)
 async def test_glauth_scale_up(ops_test: OpsTest) -> None:
     app, target_unit_num = ops_test.model.applications[GLAUTH_APP], 2
 
@@ -215,12 +240,13 @@ async def test_glauth_scale_down(ops_test: OpsTest) -> None:
 
 async def test_ldap_search_operation(
     initialize_database: None,
-    ldap_uri: str,
     ldap_configurations: Optional[tuple[str, ...]],
+    ingress_url: Optional[str],
 ) -> None:
     assert ldap_configurations, "LDAP configuration should be ready"
     base_dn, bind_dn, bind_password = ldap_configurations
 
+    ldap_uri = f"ldap://{ingress_url}"
     with ldap_connection(uri=ldap_uri, bind_dn=bind_dn, bind_password=bind_password) as conn:
         res = conn.search_s(
             base=base_dn,
@@ -228,7 +254,7 @@ async def test_ldap_search_operation(
             filterstr="(cn=hackers)",
         )
 
-    assert res[0], "User 'hackers' can be found"
+    assert res[0], "Can't find user 'hackers'"
     dn, _ = res[0]
     assert dn == f"cn=hackers,ou=superheros,ou=users,{base_dn}"
 
@@ -241,7 +267,7 @@ async def test_ldap_search_operation(
             filterstr="(cn=johndoe)",
         )
 
-    assert res[0], "User 'johndoe' can be found by using 'serviceuser' as bind DN"
+    assert res[0], "User 'johndoe' can't be found by using 'serviceuser' as bind DN"
     dn, _ = res[0]
     assert dn == f"cn=johndoe,ou=svcaccts,ou=users,{base_dn}"
 
@@ -252,7 +278,7 @@ async def test_ldap_search_operation(
             base=f"ou=superheros,{base_dn}", scope=ldap.SCOPE_SUBTREE, filterstr="(cn=user4)"
         )
 
-    assert user4[0], "User 'user4' can be found by using 'hackers' as bind DN"
+    assert user4[0], "User 'user4' can't be found by using 'hackers' as bind DN"
     dn, _ = user4[0]
     assert dn == f"cn=user4,ou=superheros,{base_dn}"
 

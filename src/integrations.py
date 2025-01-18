@@ -181,14 +181,17 @@ class CertificatesIntegration:
         self._container = charm._container
 
         hostname = charm.config.get("hostname")
+        sans = [hostname, f"{charm.app.name}.{charm.model.name}.svc.cluster.local"]
+
+        if ingress := charm.ingress_per_unit.url:
+            ingress_domain, *_ = ingress.rsplit(sep=":", maxsplit=1)
+            sans.append(ingress_domain)
+
         self.cert_handler = CertHandler(
             charm,
             key="glauth-server-cert",
             cert_subject=hostname,
-            sans=[
-                hostname,
-                f"{charm.app.name}.{charm.model.name}.svc.cluster.local",
-            ],
+            sans=sans,
         )
 
     @property
