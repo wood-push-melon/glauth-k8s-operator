@@ -26,7 +26,11 @@ from charms.loki_k8s.v1.loki_push_api import LogForwarder
 from charms.observability_libs.v0.kubernetes_service_patch import KubernetesServicePatch
 from charms.observability_libs.v1.cert_handler import CertChanged
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
-from charms.traefik_k8s.v1.ingress_per_unit import IngressPerUnitRequirer
+from charms.traefik_k8s.v1.ingress_per_unit import (
+    IngressPerUnitReadyForUnitEvent,
+    IngressPerUnitRequirer,
+    IngressPerUnitRevokedForUnitEvent,
+)
 from lightkube import Client
 from ops import main
 from ops.charm import (
@@ -161,6 +165,8 @@ class GLAuthCharm(CharmBase):
         self.framework.observe(
             self.database_requirer.on.endpoints_changed, self._on_database_changed
         )
+        self.framework.observe(self.ingress_per_unit.on.ready_for_unit, self._on_ingress_changed)
+        self.framework.observe(self.ingress_per_unit.on.revoked_for_unit, self._on_ingress_changed)
 
         self.config_file = ConfigFile(
             base_dn=self.config.get("base_dn"),
@@ -299,6 +305,24 @@ class GLAuthCharm(CharmBase):
             relation_id=event.relation.id,
             data=self._auxiliary_integration.auxiliary_data,
         )
+
+    @wait_when(container_not_connected)
+    def _on_ingress_changed(
+        self, event: IngressPerUnitReadyForUnitEvent | IngressPerUnitRevokedForUnitEvent
+    ) -> None:
+        try:
+            self._certs_integration.update_certificates()
+        except CertificatesError:
+            self.unit.status = BlockedStatus(
+                "Failed to update the TLS certificates, please check the logs"
+            )
+            return
+
+        if not self._certs_integration.certs_ready():
+            return
+
+        self._handle_event_update(event)
+        self._certs_transfer_integration.transfer_certificates(self._certs_integration.cert_data)
 
     @wait_when(container_not_connected)
     def _on_cert_changed(self, event: CertChanged) -> None:
