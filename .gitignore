@@ -160,3 +160,8 @@ cython_debug/
 .idea/
 
 *.charm
+
+# Terraform
+.terraform
+.terraform.lock.hcl
+*.tfstate*
