@@ -35,7 +35,7 @@ async def test_build_and_deploy(ops_test: OpsTest) -> None:
     charm_lib_path = Path("lib/charms")
     any_charm_src_overwrite = {
         "any_charm.py": ANY_CHARM,
-        "ldap.py": (charm_lib_path / "glauth_k8s/v0/ldap.py").read_text(),
+        "ldap_interface_lib.py": (charm_lib_path / "glauth_k8s/v0/ldap.py").read_text(),
         "certificate_transfer.py": (
             charm_lib_path / "certificate_transfer_interface/v0/certificate_transfer.py"
         ).read_text(),
@@ -57,7 +57,7 @@ async def test_build_and_deploy(ops_test: OpsTest) -> None:
             channel="beta",
             config={
                 "src-overwrite": json.dumps(any_charm_src_overwrite),
-                "python-packages": "pydantic ~= 2.0\njsonschema",
+                "python-packages": "pydantic ~= 2.0\njsonschema\nldap3",
             },
         ),
         ops_test.model.deploy(
@@ -289,3 +289,16 @@ async def test_ldap_search_operation(
         pytest.raises(ldap.INSUFFICIENT_ACCESS),
     ):
         conn.search_s(base=base_dn, scope=ldap.SCOPE_SUBTREE, filterstr="(cn=user4)")
+
+
+async def test_ldap_starttls_operation(
+    ldap_configurations: Optional[tuple[str, ...]],
+    run_action: Callable,
+) -> None:
+    assert ldap_configurations, "LDAP configuration should be ready"
+    base_dn, *_ = ldap_configurations
+
+    res = await run_action(GLAUTH_CLIENT_APP, "rpc", method="starttls_operation", cn="hackers")
+    ret = json.loads(res["return"])
+    assert ret, "Can't find user 'hackers'"
+    assert ret["dn"] == f"cn=hackers,ou=superheros,ou=users,{base_dn}"

@@ -5,7 +5,7 @@ import functools
 import re
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 import aiofiles
 import ldap.ldapobject
@@ -206,3 +206,16 @@ async def initialize_database(
 
             await cursor.execute(statements)
             await conn.commit()
+
+
+@pytest_asyncio.fixture(scope="module")
+def run_action(ops_test: OpsTest) -> Callable:
+    async def _run_action(
+        application_name: str, action_name: str, **params: Any
+    ) -> dict[str, str]:
+        app = ops_test.model.applications[application_name]
+        action = await app.units[0].run_action(action_name, **params)
+        await action.wait()
+        return action.results
+
+    return _run_action
