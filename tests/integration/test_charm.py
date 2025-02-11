@@ -121,13 +121,17 @@ async def test_ingress_per_unit_integration(ingress_url: Optional[str]) -> None:
 
 
 async def test_certification_integration(
+    ops_test: OpsTest,
     certificate_integration_data: Optional[dict],
     ingress_ip: Optional[str],
 ) -> None:
     assert certificate_integration_data
     certificates = json.loads(certificate_integration_data["certificates"])
     certificate = certificates[0]["certificate"]
-    assert "CN=ldap.glauth.com" == extract_certificate_common_name(certificate)
+    assert (
+        f"CN={GLAUTH_APP}.{ops_test.model_name}.svc.cluster.local"
+        == extract_certificate_common_name(certificate)
+    )
     assert ingress_ip in extract_certificate_sans(certificate)
 
 
@@ -204,7 +208,10 @@ async def test_certificate_transfer_integration(
     assert isinstance(json.loads(chain), list), "Invalid certificate chain."
 
     certificate = certificate_transfer_integration_data["certificate"]
-    assert "CN=ldap.glauth.com" == extract_certificate_common_name(certificate)
+    assert (
+        f"CN={GLAUTH_APP}.{ops_test.model_name}.svc.cluster.local"
+        == extract_certificate_common_name(certificate)
+    )
     assert ingress_ip in extract_certificate_sans(certificate)
 
 
