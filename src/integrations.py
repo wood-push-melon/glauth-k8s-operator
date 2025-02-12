@@ -3,7 +3,6 @@
 
 import hashlib
 import logging
-import socket
 import subprocess
 from contextlib import suppress
 from dataclasses import dataclass
@@ -117,7 +116,7 @@ class LdapIntegration:
         if ingress := self._charm.ingress_per_unit.urls:
             return [f"ldap://{url}" for url in ingress.values()]
 
-        url = self._charm.config.get("hostname") or socket.getfqdn()
+        url = f"{self._charm.app.name}.{self._charm.model.name}.svc.cluster.local"
         return [f"ldap://{url}:{GLAUTH_LDAP_PORT}"]
 
     @property
@@ -180,8 +179,8 @@ class CertificatesIntegration:
         self._charm = charm
         self._container = charm._container
 
-        hostname = charm.config.get("hostname")
-        sans = [hostname, f"{charm.app.name}.{charm.model.name}.svc.cluster.local"]
+        k8s_svc_host = f"{charm.app.name}.{charm.model.name}.svc.cluster.local"
+        sans = [k8s_svc_host]
 
         if ingress := charm.ingress_per_unit.url:
             ingress_domain, *_ = ingress.rsplit(sep=":", maxsplit=1)
@@ -190,7 +189,7 @@ class CertificatesIntegration:
         self.cert_handler = CertHandler(
             charm,
             key="glauth-server-cert",
-            cert_subject=hostname,
+            cert_subject=k8s_svc_host,
             sans=sans,
         )
 

@@ -96,7 +96,12 @@ juju integrate glauth-k8s self-signed-certificates
 
 ## Observability
 
-GLAuth operator integrates with [Canonical Observability Stack (COS)](https://charmhub.io/topics/canonical-observability-stack) bundle. It comes with a Grafana dashboard and Loki and Prometheus alert rules for basic common scenarios. To integrate with the COS bundle, after you [deploy](https://charmhub.io/topics/canonical-observability-stack/tutorials/install-microk8s#heading--deploy-the-cos-lite-bundle) it, you can run:
+GLAuth operator integrates
+with [Canonical Observability Stack (COS)](https://charmhub.io/topics/canonical-observability-stack)
+bundle. It comes with a Grafana dashboard and Loki and Prometheus alert rules
+for basic common scenarios. To integrate with the COS bundle, after
+you [deploy](https://charmhub.io/topics/canonical-observability-stack/tutorials/install-microk8s#heading--deploy-the-cos-lite-bundle)
+it, you can run:
 
 ```shell
 juju integrate glauth-k8s:metrics-endpoint prometheus:metrics-endpoint
@@ -109,16 +114,16 @@ juju integrate glauth-k8s:grafana-dashboard grafana:grafana-dashboard
 The `glauth-k8s` charmed operator offers the following charm configuration
 options.
 
-| Charm Config Option | Description                                                      | Example                                              |
-| :-----------------: | ---------------------------------------------------------------- | ---------------------------------------------------- |
-|      `base_dn`      | The portion of the DIT in which to search for matching entries   | `juju config <charm-app> base-dn="dc=glauth,dc=com"` |
-|     `hostname`      | The hostname of the LDAP server in `glauth-k8s` charmed operator | `juju config <charm-app> hostname="ldap.glauth.com"` |
-| `starttls_enabled`  | The switch to enable/disable StartTLS support                    | `juju config <charm-app> starttls_enabled=true`      |
+|  Charm Config Option   | Description                                                    | Example                                              |
+|:----------------------:|----------------------------------------------------------------|------------------------------------------------------|
+|       `base_dn`        | The portion of the DIT in which to search for matching entries | `juju config <charm-app> base-dn="dc=glauth,dc=com"` |
+|   `starttls_enabled`   | The switch to enable/disable StartTLS support                  | `juju config <charm-app> starttls_enabled=true`      |
+| `anonymousdse_enabled` | The switch to enable/disable anonymous access to the root DSE  | `juju config <charm-app> anonymousdse_enabled=true`  |
 
 > ⚠️ **NOTE**
 >
-> - The `hostname` should **NOT** contain the ldap scheme (e.g. `ldap://`) and port.
-> - Please refer to the `config.yaml` for more details about the configurations.
+> - Please refer to the `charmcraft.yaml` for more details about the
+    configurations.
 
 ## Contributing
 

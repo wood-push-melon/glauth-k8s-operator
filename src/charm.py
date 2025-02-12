@@ -310,15 +310,18 @@ class GLAuthCharm(CharmBase):
     def _on_ingress_changed(
         self, event: IngressPerUnitReadyForUnitEvent | IngressPerUnitRevokedForUnitEvent
     ) -> None:
+        if self.unit.is_leader():
+            self.ldap_provider.update_relations_app_data(self._ldap_integration.provider_base_data)
+
+        if not self._certs_integration.certs_ready():
+            return
+
         try:
             self._certs_integration.update_certificates()
         except CertificatesError:
             self.unit.status = BlockedStatus(
                 "Failed to update the TLS certificates, please check the logs"
             )
-            return
-
-        if not self._certs_integration.certs_ready():
             return
 
         self._handle_event_update(event)
