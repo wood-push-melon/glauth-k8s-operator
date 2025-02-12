@@ -63,7 +63,7 @@ async def test_build_and_deploy(ops_test: OpsTest) -> None:
         ops_test.model.deploy(
             TRAEFIK_CHARM,
             application_name=INGRESS_APP,
-            channel="latest/edge",
+            channel="latest/stable",
             trust=True,
         ),
     )
