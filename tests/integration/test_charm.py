@@ -109,10 +109,11 @@ async def test_build_and_deploy(ops_test: OpsTest) -> None:
 
 async def test_database_integration(
     ops_test: OpsTest,
-    database_integration_data: Optional[dict],
+    database_integration_data: dict,
 ) -> None:
     assert database_integration_data
     assert f"{ops_test.model_name}_{GLAUTH_APP}" == database_integration_data["database"]
+    assert database_integration_data["username"]
     assert database_integration_data["password"]
 
 
@@ -200,9 +201,9 @@ async def test_certificate_transfer_integration(
     assert certificate_transfer_integration_data, "Certificate transfer integration data is empty."
 
     for key in ("ca", "certificate", "chain"):
-        assert (
-            key in certificate_transfer_integration_data
-        ), f"Missing '{key}' in certificate transfer integration data."
+        assert key in certificate_transfer_integration_data, (
+            f"Missing '{key}' in certificate transfer integration data."
+        )
 
     chain = certificate_transfer_integration_data["chain"]
     assert isinstance(json.loads(chain), list), "Invalid certificate chain."
