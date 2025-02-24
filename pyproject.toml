@@ -80,7 +80,7 @@ convention = "google"
 pretty = true
 mypy_path = "./src:./lib/:./tests"
 # Exclude non-glauth libraries
-exclude = 'lib/charms/((?!glauth_k8s/).)'
+exclude = 'lib/charms/(?!glauth_k8s/).*'
 follow_imports = "silent"
 warn_redundant_casts = true
 warn_unused_configs = true

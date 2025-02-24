@@ -3,6 +3,7 @@
 
 import functools
 import re
+from base64 import b64decode
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Callable, Optional
@@ -121,8 +122,20 @@ async def ldap_integration_data(app_integration_data: Callable) -> Optional[dict
 
 
 @pytest_asyncio.fixture
-async def database_integration_data(app_integration_data: Callable) -> Optional[dict]:
-    return await app_integration_data(GLAUTH_APP, "pg-database")
+async def database_integration_data(ops_test: OpsTest, app_integration_data: Callable) -> dict:
+    database_integration_data = await app_integration_data(GLAUTH_APP, "pg-database") or {}
+
+    db_credentials = await ops_test.model.list_secrets(
+        filter={"uri": database_integration_data["secret-user"]},
+        show_secrets=True,
+    )
+    db_credential = next(iter(db_credentials), None)
+    decoded_db_credentials = {
+        field: b64decode(db_credential.value.data[field]).decode("utf-8")
+        for field in ("username", "password")
+    }
+
+    return {**database_integration_data, **decoded_db_credentials}
 
 
 @pytest_asyncio.fixture
@@ -186,10 +199,8 @@ async def database_address(ops_test: OpsTest) -> str:
 
 
 @pytest_asyncio.fixture
-async def initialize_database(
-    database_integration_data: Optional[dict], database_address: str
-) -> None:
-    assert database_integration_data is not None, "database_integration_data should be ready"
+async def initialize_database(database_integration_data: dict, database_address: str) -> None:
+    assert database_integration_data, "database_integration_data should be ready"
 
     db_connection_params = {
         "dbname": database_integration_data["database"],
