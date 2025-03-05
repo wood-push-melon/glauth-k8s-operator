@@ -204,15 +204,16 @@ class CertificatesIntegration:
         k8s_svc_host = f"{charm.app.name}.{charm.model.name}.svc.cluster.local"
         sans_dns, sans_ip = [k8s_svc_host], []
 
-        if ingress := charm.ingress_per_unit.url:
-            ingress_domain, *_ = ingress.rsplit(sep=":", maxsplit=1)
+        for ingress in (charm.ingress_per_unit, charm.ldaps_ingress_per_unit):
+            if ingress_url := ingress.url:
+                ingress_domain, *_ = ingress_url.rsplit(sep=":", maxsplit=1)
 
-            try:
-                ipaddress.ip_address(ingress_domain)
-            except ValueError:
-                sans_dns.append(ingress_domain)
-            else:
-                sans_ip.append(ingress_domain)
+                try:
+                    ipaddress.ip_address(ingress_domain)
+                except ValueError:
+                    sans_dns.append(ingress_domain)
+                else:
+                    sans_ip.append(ingress_domain)
 
         self.csr_attributes = CertificateRequestAttributes(
             common_name=k8s_svc_host,
@@ -227,6 +228,8 @@ class CertificatesIntegration:
             refresh_events=[
                 charm.ingress_per_unit.on.ready_for_unit,
                 charm.ingress_per_unit.on.revoked_for_unit,
+                charm.ldaps_ingress_per_unit.on.ready_for_unit,
+                charm.ldaps_ingress_per_unit.on.revoked_for_unit,
             ],
         )
 
