@@ -4,6 +4,7 @@
 resource "juju_application" "glauth-k8s" {
   name  = var.app_name
   model = var.model_name
+  trust = true
 
   charm {
     name     = "glauth-k8s"
