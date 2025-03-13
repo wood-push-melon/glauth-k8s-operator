@@ -129,6 +129,9 @@ class LdapIntegration:
 
     @property
     def ldaps_urls(self) -> List[str]:
+        if not self.ldaps_enabled:
+            return []
+
         if ingress := self._charm.ldaps_ingress_per_unit.urls:
             return [f"ldaps://{url}" for url in ingress.values()]
 
