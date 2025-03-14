@@ -365,6 +365,37 @@ class GlauthClientTestSuite:
         assert ret, "Can't find user 'hackers'"
         assert ret["dn"] == f"cn=hackers,ou=superheros,ou=users,{base_dn}"
 
+    async def test_ldaps_disabled_removes_ldaps_urls(
+        self, ops_test: OpsTest, ldap_client_app_name: str, app_integration_data: Callable
+    ):
+        # Disable LDAPS
+        await ops_test.model.applications[GLAUTH_APP].set_config({"ldaps_enabled": "false"})
+        await ops_test.model.wait_for_idle(
+            apps=[GLAUTH_APP, ldap_client_app_name],
+            status="active",
+            raise_on_blocked=False,
+            timeout=5 * 60,
+        )
+
+        # Checks that ldaps_urls is empty
+        ldaps_data = await app_integration_data(ldap_client_app_name, "ldap")
+        assert ldaps_data["ldaps_urls"] == "[]"
+
+    async def test_ldaps_re_enabled_adds_ldaps_urls(
+        self, ops_test: OpsTest, ldap_client_app_name: str, app_integration_data: Callable
+    ):
+        # Enable ldaps_urls back
+        await ops_test.model.applications[GLAUTH_APP].set_config({"ldaps_enabled": "true"})
+        await ops_test.model.wait_for_idle(
+            apps=[GLAUTH_APP, ldap_client_app_name],
+            status="active",
+            raise_on_blocked=False,
+            timeout=5 * 60,
+        )
+
+        ldaps_data = await app_integration_data(ldap_client_app_name, "ldap")
+        assert ldaps_data["ldaps_urls"] != "[]"
+
     async def test_remove_client_app(self, ops_test: OpsTest, ldap_client_app_name: str) -> None:
         await ops_test.model.remove_application(ldap_client_app_name, force=True)
         await ops_test.model.wait_for_idle(
