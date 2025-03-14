@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.0.1](https://github.com/canonical/glauth-k8s-operator/compare/v1.0.0...v1.0.1) (2025-03-14)
+
+
+### Bug Fixes
+
+* add `trust = true` to tf module ([825c095](https://github.com/canonical/glauth-k8s-operator/commit/825c095067c28fb4225ef8535af33ce6b1bca999))
+* add `trust = true` to tf module ([a75205c](https://github.com/canonical/glauth-k8s-operator/commit/a75205cc32762c3d1d92e8d967ab25ffd0264ab9))
+* Write ldaps_urls only if ldaps_enabled ([d324705](https://github.com/canonical/glauth-k8s-operator/commit/d32470529b14381c1f76f5ea22ac1982fa6dbe1b))
+* Write ldaps_urls only if ldaps_enabled ([886e12b](https://github.com/canonical/glauth-k8s-operator/commit/886e12b1b158fdff6686db14948cbecc50376068))
+
 ## 1.0.0 (2025-03-10)
 
 
