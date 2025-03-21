@@ -41,7 +41,7 @@ async def test_build_and_deploy(ops_test: OpsTest) -> None:
         ),
         ops_test.model.deploy(
             CERTIFICATE_PROVIDER_APP,
-            channel="stable",
+            channel="latest/stable",
             trust=True,
         ),
         ops_test.model.deploy(
