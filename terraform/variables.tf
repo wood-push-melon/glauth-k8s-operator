@@ -1,50 +1,49 @@
 # Copyright 2025 Canonical Ltd.
 # See LICENSE file for licensing details.
 
+variable "model_name" {
+  description = "The Juju model name"
+  type        = string
+}
+
 variable "app_name" {
-  description = "Application name"
+  description = "The Juju application name"
   type        = string
-  default     = "glauth-k8s"
-}
-
-variable "base" {
-  description = "Charm base"
-  type        = string
-  default     = "ubuntu@22.04"
-}
-
-variable "channel" {
-  description = "Charm channel"
-  type        = string
-  default     = "latest/stable"
 }
 
 variable "config" {
-  description = "Charm configuration"
+  description = "The charm config"
   type        = map(string)
   default     = {}
 }
 
 variable "constraints" {
-  description = "Deployment constraints"
+  description = "The constraints to be applied"
   type        = string
-  default     = "arch=amd64"
-}
-
-variable "model_name" {
-  description = "Model name"
-  type        = string
-}
-
-variable "revision" {
-  description = "Charm revision"
-  type        = number
-  nullable    = true
-  default     = null
+  default     = ""
 }
 
 variable "units" {
-  description = "Number of units"
+  description = "The number of units"
   type        = number
   default     = 1
+}
+
+variable "base" {
+  description = "The charm base"
+  type        = string
+  default     = "ubuntu@22.04"
+}
+
+variable "channel" {
+  description = "The charm channel"
+  type        = string
+  default     = "latest/stable"
+}
+
+variable "revision" {
+  description = "The charm revision"
+  type        = number
+  nullable    = true
+  default     = null
 }
