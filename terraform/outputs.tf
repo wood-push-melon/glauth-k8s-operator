@@ -2,25 +2,29 @@
 # See LICENSE file for licensing details.
 
 output "app_name" {
-  value = juju_application.glauth-k8s.name
+  description = "The Juju application name"
+  value       = juju_application.glauth_k8s.name
 }
 
 output "requires" {
+  description = "The Juju integrations that the charm requires"
   value = {
-    pg-database  = "pg-database"
-    logging      = "logging"
-    certificates = "certificates"
-    ingress      = "ingress"
-    ldap-client  = "ldap-client"
+    pg-database   = "pb-database"
+    ingress       = "ingress"
+    ldaps-ingress = "ldaps-ingress"
+    certificates  = "certificates"
+    ldap-client   = "ldap-client"
+    logging       = "logging"
   }
 }
 
 output "provides" {
+  description = "The Juju integrations that the charm provides"
   value = {
-    metrics-endpoint  = "metrics-endpoint"
-    grafana-dashboard = "grafana-dashboard"
     ldap              = "ldap"
     glauth-auxiliary  = "glauth-auxiliary"
     send-ca-cert      = "send-ca-cert"
+    metrics-endpoint  = "metrics-endpoint"
+    grafana-dashboard = "grafana-dashboard"
   }
 }
