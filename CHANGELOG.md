@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.1.0](https://github.com/canonical/glauth-k8s-operator/compare/v1.0.1...v1.1.0) (2025-03-27)
+
+
+### Features
+
+* add terraform module ([4351fc9](https://github.com/canonical/glauth-k8s-operator/commit/4351fc9b8cdfc1a5e2ea08fc7385391671a285e2))
+* add the terraform module ([248f37f](https://github.com/canonical/glauth-k8s-operator/commit/248f37f8e5a17db45aaee64dcc6679d73615a279))
+
+
+### Bug Fixes
+
+* fix the lint ci ([594a7bc](https://github.com/canonical/glauth-k8s-operator/commit/594a7bc57c09b50f44cbd183c712b31a45a22d5f))
+* fix the lint ci ([6cb1815](https://github.com/canonical/glauth-k8s-operator/commit/6cb1815b2ffa19a6cd156e5987dca28f97905bd2))
+
 ## [1.0.1](https://github.com/canonical/glauth-k8s-operator/compare/v1.0.0...v1.0.1) (2025-03-14)
 
 
