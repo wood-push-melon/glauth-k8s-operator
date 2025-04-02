@@ -115,6 +115,7 @@ parts:
       - jsonschema
       - cryptography
       - psycopg[binary]
+      - "setuptools>=70.0.0"
     build-packages:
       - rustc
       - cargo
