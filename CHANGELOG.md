@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/canonical/glauth-k8s-operator/compare/v1.1.0...v1.1.1) (2025-04-02)
+
+
+### Bug Fixes
+
+* address CVEs ([3ff2442](https://github.com/canonical/glauth-k8s-operator/commit/3ff24425d2c61d87aab836e6573dacbad6e8e8ae)), closes [#124](https://github.com/canonical/glauth-k8s-operator/issues/124)
+
 ## [1.1.0](https://github.com/canonical/glauth-k8s-operator/compare/v1.0.1...v1.1.0) (2025-03-27)
 
 
