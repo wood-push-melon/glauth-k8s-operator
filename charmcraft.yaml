@@ -105,9 +105,8 @@ config:
       type: boolean
 
 
-base: ubuntu@22.04
 platforms:
-  amd64:
+  ubuntu@22.04:amd64:
 
 parts:
   charm:
