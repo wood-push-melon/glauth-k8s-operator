@@ -125,6 +125,11 @@ options.
 > - Please refer to the `charmcraft.yaml` for more details about the
     configurations.
 
+## Security
+
+Please see [SECURITY.md](https://github.com/canonical/glauth-k8s-operator/blob/main/SECURITY.md)
+for guidelines on reporting security issues.
+
 ## Contributing
 
 Please refer to the [Contributing](CONTRIBUTING.md) for developer guidance.
