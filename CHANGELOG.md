@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.2](https://github.com/canonical/glauth-k8s-operator/compare/v1.1.1...v1.1.2) (2025-05-05)
+
+
+### Bug Fixes
+
+* bump `upstream-source` for oci-image to 2.4.0 ([98af110](https://github.com/canonical/glauth-k8s-operator/commit/98af110e5589fc86ff3b0ebaeee14fd575828578))
+
 ## [1.1.1](https://github.com/canonical/glauth-k8s-operator/compare/v1.1.0...v1.1.1) (2025-04-02)
 
 
