@@ -23,6 +23,12 @@ from charms.glauth_k8s.v0.ldap import (
 from charms.glauth_utils.v0.glauth_auxiliary import AuxiliaryProvider, AuxiliaryRequestedEvent
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.loki_k8s.v1.loki_push_api import LogForwarder
+from charms.observability_libs.v0.kubernetes_compute_resources_patch import (
+    K8sResourcePatchFailedEvent,
+    KubernetesComputeResourcesPatch,
+    ResourceRequirements,
+    adjust_resource_requirements,
+)
 from charms.observability_libs.v0.kubernetes_service_patch import KubernetesServicePatch
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from charms.tls_certificates_interface.v4.tls_certificates import CertificateAvailableEvent
@@ -172,6 +178,12 @@ class GLAuthCharm(CharmBase):
             self, relation_name=GRAFANA_DASHBOARD_INTEGRATION_NAME
         )
 
+        self.resources_patch = KubernetesComputeResourcesPatch(
+            self,
+            WORKLOAD_CONTAINER,
+            resource_reqs_func=self._resource_reqs_from_config,
+        )
+
         self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.remove, self._on_remove)
@@ -190,6 +202,11 @@ class GLAuthCharm(CharmBase):
         )
         self.framework.observe(
             self.ldaps_ingress_per_unit.on.revoked_for_unit, self._on_ingress_changed
+        )
+
+        # resource patching
+        self.framework.observe(
+            self.resources_patch.on.patch_failed, self._on_resource_patch_failed
         )
 
         self.config_file = ConfigFile(
@@ -303,6 +320,10 @@ class GLAuthCharm(CharmBase):
 
         self._handle_event_update(event)
 
+    def _on_resource_patch_failed(self, event: K8sResourcePatchFailedEvent) -> None:
+        logger.error(f"Failed to patch resource constraints: {event.message}")
+        self.unit.status = BlockedStatus(event.message)
+
     @leader_unit
     @wait_when(database_not_ready, service_not_ready)
     def _on_ldap_requested(self, event: LdapRequestedEvent) -> None:
@@ -361,6 +382,11 @@ class GLAuthCharm(CharmBase):
         self._certs_transfer_integration.transfer_certificates(
             self._certs_integration.cert_data, event.relation.id
         )
+
+    def _resource_reqs_from_config(self) -> ResourceRequirements:
+        limits = {"cpu": self.model.config.get("cpu"), "memory": self.model.config.get("memory")}
+        requests = {"cpu": "100m", "memory": "200Mi"}
+        return adjust_resource_requirements(limits, requests, adhere_to_requests=True)
 
 
 if __name__ == "__main__":

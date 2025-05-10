@@ -75,6 +75,20 @@ def k8s_client(mocker: MockerFixture) -> MagicMock:
     return mocked_k8s_client
 
 
+@pytest.fixture(autouse=True)
+def mocked_k8s_resource_patch(mocker: MockerFixture) -> None:
+    mocker.patch(
+        "charms.observability_libs.v0.kubernetes_compute_resources_patch.ResourcePatcher",
+        autospec=True,
+    )
+    mocker.patch.multiple(
+        "charm.KubernetesComputeResourcesPatch",
+        _namespace="kratos-model",
+        _patch=lambda *a, **kw: True,
+        is_ready=lambda *a, **kw: True,
+    )
+
+
 @pytest.fixture
 def mocked_kubernetes_service_patcher(mocker: MockerFixture) -> MagicMock:
     mocked_service_patcher = mocker.patch("charm.KubernetesServicePatch")
