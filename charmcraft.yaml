@@ -28,12 +28,12 @@ requires:
     interface: postgresql_client
     optional: false
     limit: 1
-  logging:
-    interface: loki_push_api
-    optional: true
   certificates:
     interface: tls-certificates
     limit: 1
+    optional: false
+  logging:
+    interface: loki_push_api
     optional: true
   ingress:
     interface: ingress_per_unit
@@ -47,6 +47,7 @@ requires:
     description: |
       Use another ldap server as a backend
     interface: ldap
+    optional: true
 
 provides:
   metrics-endpoint:
