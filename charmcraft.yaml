@@ -54,22 +54,27 @@ provides:
     description: |
       Provides application metrics to COS Prometheus instance.
     interface: prometheus_scrape
+    optional: true
   grafana-dashboard:
     description: |
       Forwards the built-in grafana dashboard(s) for monitoring GLAuth.
     interface: grafana_dashboard
+    optional: true
   ldap:
     description: |
       Provides LDAP configuration data
     interface: ldap
+    optional: true
   glauth-auxiliary:
     description: |
       Provides auxiliary data for glauth-utils charmed operator.
     interface: glauth_auxiliary
+    optional: true
   send-ca-cert:
     description: |
       Transfer certificates to client charmed operators.
     interface: certificate_transfer
+    optional: true
 
 config:
   options:
