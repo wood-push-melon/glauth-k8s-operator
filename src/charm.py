@@ -47,6 +47,7 @@ from ops.charm import (
     PebbleReadyEvent,
     RelationJoinedEvent,
     RemoveEvent,
+    UpdateStatusEvent,
 )
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
 from ops.pebble import ChangeError
@@ -194,6 +195,7 @@ class GLAuthCharm(CharmBase):
 
         self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
+        self.framework.observe(self.on.update_status, self._on_update_status)
         self.framework.observe(self.on.remove, self._on_remove)
         self.framework.observe(self.on.glauth_pebble_ready, self._on_pebble_ready)
         self.framework.observe(
@@ -230,7 +232,7 @@ class GLAuthCharm(CharmBase):
         self._ldap_integration = LdapIntegration(self)
         self._auxiliary_integration = AuxiliaryIntegration(self)
 
-    def __restart_service(self, restart: bool = True) -> None:
+    def _restart_service(self, restart: bool = False) -> None:
         if restart:
             self._container.restart(WORKLOAD_SERVICE)
         elif not self._container.get_service(WORKLOAD_SERVICE).is_running():
@@ -239,9 +241,9 @@ class GLAuthCharm(CharmBase):
             self._container.replan()
 
     @after_config_updated
-    def _restart_glauth_service(self, restart: bool = True) -> None:
+    def _restart_glauth_service(self, restart: bool = False) -> None:
         try:
-            self.__restart_service(restart)
+            self._restart_service(restart)
         except ChangeError as err:
             logger.error(str(err))
             self.unit.status = BlockedStatus(
@@ -258,8 +260,6 @@ class GLAuthCharm(CharmBase):
         tls_certificates_not_ready,
     )
     def _handle_event_update(self, event: HookEvent) -> None:
-        self.unit.status = MaintenanceStatus("Configuring GLAuth container")
-
         self._update_glauth_config()
         self._container.add_layer(WORKLOAD_CONTAINER, pebble_layer, combine=True)
 
@@ -270,16 +270,13 @@ class GLAuthCharm(CharmBase):
     def current_config_hash(self) -> Optional[int]:
         return self._stored.config_hash
 
-    def _config_changed(self, config_hash: int) -> bool:
-        return config_hash != self.current_config_hash
-
     @leader_unit
     def _update_cm(self) -> None:
         self._configmap.patch({"glauth.cfg": self.config_file.content})
 
     def _update_glauth_config(self) -> None:
         config_hash = hash(self.config_file)
-        if not self._config_changed(config_hash):
+        if config_hash == self.current_config_hash:
             return
 
         self._update_cm()
@@ -322,22 +319,29 @@ class GLAuthCharm(CharmBase):
         self._configmap.delete()
 
     def _on_database_created(self, event: DatabaseCreatedEvent) -> None:
+        self.unit.status = MaintenanceStatus("Configuring resources")
         self._handle_event_update(event)
         self.auxiliary_provider.update_relation_app_data(
             data=self._auxiliary_integration.auxiliary_data,
         )
 
     def _on_database_changed(self, event: DatabaseEndpointsChangedEvent) -> None:
+        self.unit.status = MaintenanceStatus("Configuring resources")
         self._handle_event_update(event)
         self.auxiliary_provider.update_relation_app_data(
             data=self._auxiliary_integration.auxiliary_data,
         )
 
+    def _on_update_status(self, event: UpdateStatusEvent) -> None:
+        self._handle_event_update(event)
+
     def _on_config_changed(self, event: ConfigChangedEvent) -> None:
+        self.unit.status = MaintenanceStatus("Configuring resources")
         self._handle_event_update(event)
         self.ldap_provider.update_relations_app_data(self._ldap_integration.provider_base_data)
 
     def _on_pebble_ready(self, event: PebbleReadyEvent) -> None:
+        self.unit.status = MaintenanceStatus("Configuring resources")
         self._mount_glauth_config()
         self.__on_pebble_ready(event)
 

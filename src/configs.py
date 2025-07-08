@@ -9,7 +9,6 @@ from typing import Any, Mapping, Optional
 from charms.glauth_k8s.v0.ldap import LdapProviderData, LdapRequirer
 from jinja2 import Template
 from ops.pebble import Layer
-from pydantic import ValidationError
 
 from constants import (
     GLAUTH_COMMANDS,

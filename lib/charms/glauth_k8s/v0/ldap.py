@@ -256,8 +256,6 @@ class Secret:
         cls,
         charm: CharmBase,
         label: str,
-        *,
-        content: Optional[dict[str, str]] = None,
     ) -> Optional["Secret"]:
         try:
             secret = charm.model.get_secret(label=label)
@@ -510,7 +508,7 @@ class LdapRequirer(Object):
         try:
             return LdapProviderData(**provider_data)
         except ValidationError:
-            pass
+            return None
 
     def consume_ldap_relation_data(
         self,
