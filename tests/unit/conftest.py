@@ -129,7 +129,7 @@ def mocked_statefulset(mocker: MockerFixture, harness: Harness) -> MagicMock:
 
 @pytest.fixture
 def mocked_restart_glauth_service(mocker: MockerFixture, harness: Harness) -> Callable:
-    def mock_restart_glauth_service(charm: CharmBase) -> None:
+    def mock_restart_glauth_service(charm: CharmBase, restart: bool = True) -> None:
         charm._container.restart(WORKLOAD_CONTAINER)
 
     return mocker.patch("charm.GLAuthCharm._restart_glauth_service", mock_restart_glauth_service)
