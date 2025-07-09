@@ -1,6 +1,7 @@
 # Copyright 2024 Canonical Ltd.
 # See LICENSE file for licensing details.
 
+import hashlib
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Mapping, Optional
@@ -56,7 +57,9 @@ class LdapServerConfig:
 
     @classmethod
     def load(cls, requirer: LdapRequirer) -> Optional["LdapServerConfig"]:
-        if not (ldap_servers := requirer.consume_ldap_relation_data()):
+        ldap_servers = requirer.consume_ldap_relation_data()
+
+        if not ldap_servers:
             return None
 
         return LdapServerConfig(ldap_servers)
@@ -88,8 +91,8 @@ class LdapsConfig:
         )
 
 
-@dataclass
-class ConfigFile:
+@dataclass(frozen=True)
+class ConfigFileData:
     base_dn: Optional[str] = None
     anonymousdse_enabled: bool = False
     database_config: Optional[DatabaseConfig] = None
@@ -97,27 +100,49 @@ class ConfigFile:
     ldaps_config: Optional[LdapsConfig] = None
     ldap_servers_config: Optional[LdapServerConfig] = None
 
+
+class ConfigFile:
+    def __init__(self, config_file: ConfigFileData) -> None:
+        self._config_file = config_file
+        self._content: str = ""
+
     @property
     def content(self) -> str:
-        return self.render()
+        if not self._content:
+            self._content = self.render()
+        return self._content
 
     def render(self) -> str:
         with open("templates/glauth.cfg.j2", mode="r") as file:
             template = Template(file.read())
 
-        database_config = asdict(self.database_config) if self.database_config else None
-        ldap_servers_config = self.ldap_servers_config
-        starttls_config = asdict(self.starttls_config) if self.starttls_config else None
-        ldaps_config = asdict(self.ldaps_config) if self.ldaps_config else None
-        rendered = template.render(
-            base_dn=self.base_dn,
-            anonymousdse_enabled=self.anonymousdse_enabled,
+        database_config = (
+            asdict(self._config_file.database_config)
+            if self._config_file.database_config
+            else None
+        )
+        ldap_servers_config = self._config_file.ldap_servers_config
+        starttls_config = (
+            asdict(self._config_file.starttls_config)
+            if self._config_file.starttls_config
+            else None
+        )
+        ldaps_config = (
+            asdict(self._config_file.ldaps_config) if self._config_file.ldaps_config else None
+        )
+        return template.render(
+            base_dn=self._config_file.base_dn,
+            anonymousdse_enabled=self._config_file.anonymousdse_enabled,
             database=database_config,
             ldap_servers=ldap_servers_config,
             starttls=starttls_config,
             ldaps=ldaps_config,
         )
-        return rendered
+
+    def __hash__(self) -> int:
+        # Do not use the builtin `hash` function, the salt changes on every interpreter
+        # run making it useless in charms
+        return int(hashlib.md5(self.content.encode()).hexdigest(), 16)
 
 
 pebble_layer = Layer({

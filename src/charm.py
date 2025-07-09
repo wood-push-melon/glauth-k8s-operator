@@ -7,7 +7,7 @@
 """A Juju Kubernetes charmed operator for GLAuth."""
 
 import logging
-from typing import Any
+from typing import Any, Optional
 
 from charms.data_platform_libs.v0.data_interfaces import (
     DatabaseCreatedEvent,
@@ -38,7 +38,7 @@ from charms.traefik_k8s.v1.ingress_per_unit import (
     IngressPerUnitRevokedForUnitEvent,
 )
 from lightkube import Client
-from ops import main
+from ops import StoredState, main
 from ops.charm import (
     CharmBase,
     ConfigChangedEvent,
@@ -47,12 +47,14 @@ from ops.charm import (
     PebbleReadyEvent,
     RelationJoinedEvent,
     RemoveEvent,
+    UpdateStatusEvent,
 )
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
 from ops.pebble import ChangeError
 
 from configs import (
     ConfigFile,
+    ConfigFileData,
     DatabaseConfig,
     LdapsConfig,
     LdapServerConfig,
@@ -73,6 +75,7 @@ from constants import (
     LOKI_API_PUSH_INTEGRATION_NAME,
     PROMETHEUS_SCRAPE_INTEGRATION_NAME,
     WORKLOAD_CONTAINER,
+    WORKLOAD_SERVICE,
 )
 from exceptions import CertificatesError
 from integrations import (
@@ -102,8 +105,14 @@ logger = logging.getLogger(__name__)
 class GLAuthCharm(CharmBase):
     """Charm the service."""
 
+    _stored = StoredState()
+    config_changed = False
+
     def __init__(self, *args: Any):
         super().__init__(*args)
+        self._stored.set_default(
+            config_hash=None,
+        )
         self._container = self.unit.get_container(WORKLOAD_CONTAINER)
 
         self._k8s_client = Client(field_manager=self.app.name, namespace=self.model.name)
@@ -186,6 +195,7 @@ class GLAuthCharm(CharmBase):
 
         self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
+        self.framework.observe(self.on.update_status, self._on_update_status)
         self.framework.observe(self.on.remove, self._on_remove)
         self.framework.observe(self.on.glauth_pebble_ready, self._on_pebble_ready)
         self.framework.observe(
@@ -210,18 +220,30 @@ class GLAuthCharm(CharmBase):
         )
 
         self.config_file = ConfigFile(
-            base_dn=self.config.get("base_dn"),
-            anonymousdse_enabled=self.config.get("anonymousdse_enabled"),
-            starttls_config=StartTLSConfig.load(self.config),
-            ldaps_config=LdapsConfig.load(self.config),
+            ConfigFileData(
+                base_dn=self.config.get("base_dn"),
+                anonymousdse_enabled=self.config.get("anonymousdse_enabled"),
+                starttls_config=StartTLSConfig.load(self.config),
+                ldaps_config=LdapsConfig.load(self.config),
+                database_config=DatabaseConfig.load(self.database_requirer),
+                ldap_servers_config=LdapServerConfig.load(self.ldap_requirer),
+            ),
         )
         self._ldap_integration = LdapIntegration(self)
         self._auxiliary_integration = AuxiliaryIntegration(self)
 
+    def _restart_service(self, restart: bool = False) -> None:
+        if restart:
+            self._container.restart(WORKLOAD_SERVICE)
+        elif not self._container.get_service(WORKLOAD_SERVICE).is_running():
+            self._container.start(WORKLOAD_SERVICE)
+        else:
+            self._container.replan()
+
     @after_config_updated
-    def _restart_glauth_service(self) -> None:
+    def _restart_glauth_service(self, restart: bool = False) -> None:
         try:
-            self._container.restart(WORKLOAD_CONTAINER)
+            self._restart_service(restart)
         except ChangeError as err:
             logger.error(str(err))
             self.unit.status = BlockedStatus(
@@ -238,20 +260,32 @@ class GLAuthCharm(CharmBase):
         tls_certificates_not_ready,
     )
     def _handle_event_update(self, event: HookEvent) -> None:
-        self.unit.status = MaintenanceStatus("Configuring GLAuth container")
-
-        self.config_file.database_config = DatabaseConfig.load(self.database_requirer)
-        self.config_file.ldap_servers_config = LdapServerConfig.load(self.ldap_requirer)
-
         self._update_glauth_config()
         self._container.add_layer(WORKLOAD_CONTAINER, pebble_layer, combine=True)
 
-        self._restart_glauth_service()
+        self._restart_glauth_service(restart=self.config_changed)
         self.unit.status = ActiveStatus()
 
+    @property
+    def current_config_hash(self) -> Optional[int]:
+        return self._stored.config_hash
+
+    def fetch_cm(self) -> str:
+        return self._configmap.get().data["glauth.cfg"]
+
     @leader_unit
-    def _update_glauth_config(self) -> None:
+    def _update_cm(self) -> None:
         self._configmap.patch({"glauth.cfg": self.config_file.content})
+
+    def _update_glauth_config(self) -> None:
+        config_hash = hash(self.config_file)
+        if config_hash == self.current_config_hash:
+            return
+
+        self._update_cm()
+
+        self._stored.config_hash = config_hash
+        self.config_changed = True
 
     @leader_unit
     def _mount_glauth_config(self) -> None:
@@ -280,31 +314,37 @@ class GLAuthCharm(CharmBase):
 
     @leader_unit
     def _on_install(self, event: InstallEvent) -> None:
-        self._configmap.create(data={"glauth.cfg": self.config_file.content})
+        self._configmap.create()
+        self._update_glauth_config()
 
     @leader_unit
     def _on_remove(self, event: RemoveEvent) -> None:
         self._configmap.delete()
 
     def _on_database_created(self, event: DatabaseCreatedEvent) -> None:
+        self.unit.status = MaintenanceStatus("Configuring resources")
         self._handle_event_update(event)
         self.auxiliary_provider.update_relation_app_data(
             data=self._auxiliary_integration.auxiliary_data,
         )
 
     def _on_database_changed(self, event: DatabaseEndpointsChangedEvent) -> None:
+        self.unit.status = MaintenanceStatus("Configuring resources")
         self._handle_event_update(event)
         self.auxiliary_provider.update_relation_app_data(
             data=self._auxiliary_integration.auxiliary_data,
         )
 
+    def _on_update_status(self, event: UpdateStatusEvent) -> None:
+        self._handle_event_update(event)
+
     def _on_config_changed(self, event: ConfigChangedEvent) -> None:
-        self.config_file.base_dn = self.config.get("base_dn")
-        self.config_file.anonymousdse_enabled = self.config.get("anonymousdse_enabled")
+        self.unit.status = MaintenanceStatus("Configuring resources")
         self._handle_event_update(event)
         self.ldap_provider.update_relations_app_data(self._ldap_integration.provider_base_data)
 
     def _on_pebble_ready(self, event: PebbleReadyEvent) -> None:
+        self.unit.status = MaintenanceStatus("Configuring resources")
         self._mount_glauth_config()
         self.__on_pebble_ready(event)
 

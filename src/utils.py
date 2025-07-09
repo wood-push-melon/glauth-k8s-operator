@@ -150,12 +150,14 @@ def leader_unit(func: Callable) -> Callable:
 def after_config_updated(func: Callable) -> Callable:
     @wraps(func)
     def wrapper(charm: CharmBase, *args: Any, **kwargs: Any) -> Optional[Any]:
-        charm.unit.status = WaitingStatus("Waiting for configuration to be updated")
+        if not charm.config_changed:
+            return func(charm, *args, **kwargs)
 
+        charm.unit.status = WaitingStatus("Waiting for configuration to be updated")
         for attempt in Retrying(
             wait=wait_fixed(3),
         ):
-            expected_config = charm.config_file.content
+            expected_config = charm.fetch_cm()
             current_config = charm._container.pull(GLAUTH_CONFIG_FILE).read()
             with attempt:
                 if expected_config != current_config:

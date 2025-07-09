@@ -83,8 +83,14 @@ def test_event_emitted_when_ldap_is_ready(
     provider_data: Dict,
     requirer_data: Dict,
 ) -> None:
+    password = "p4ssw0rd"
     relation_id = harness.add_relation("ldap", "provider")
     harness.add_relation_unit(relation_id, "provider/0")
+    relation_id = harness.add_relation("ldap", "provider")
+    harness.add_relation_unit(relation_id, "provider/0")
+    secret_id = harness.add_model_secret("provider", {"password": password})
+    harness.grant_secret(secret_id, "requirer-tester")
+    provider_data["bind_password_secret"] = secret_id
     harness.update_relation_data(
         relation_id,
         "provider",
