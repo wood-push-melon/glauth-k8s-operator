@@ -270,6 +270,9 @@ class GLAuthCharm(CharmBase):
     def current_config_hash(self) -> Optional[int]:
         return self._stored.config_hash
 
+    def fetch_cm(self) -> str:
+        return self._configmap.get().data["glauth.cfg"]
+
     @leader_unit
     def _update_cm(self) -> None:
         self._configmap.patch({"glauth.cfg": self.config_file.content})

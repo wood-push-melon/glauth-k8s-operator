@@ -157,7 +157,7 @@ def after_config_updated(func: Callable) -> Callable:
         for attempt in Retrying(
             wait=wait_fixed(3),
         ):
-            expected_config = charm.config_file.content
+            expected_config = charm.fetch_cm()
             current_config = charm._container.pull(GLAUTH_CONFIG_FILE).read()
             with attempt:
                 if expected_config != current_config:
