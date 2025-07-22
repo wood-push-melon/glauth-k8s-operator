@@ -24,7 +24,7 @@ charm using the Juju Terraform provider.
 | <a name="input_model_name"></a> [model\_name](#input\_model\_name) | The Juju model name | `string` | n/a | yes |
 | <a name="input_app_name"></a> [app\_name](#input\_app\_name) | The Juju application name | `string` | n/a | yes |
 | <a name="input_config"></a> [config](#input\_config) | The charm config | `map(string)` | `{}` | no |
-| <a name="input_constraints"></a> [constraints](#input\_constraints) | The constraints to be applied | `string` | `""` | no |
+| <a name="input_constraints"></a> [constraints](#input\_constraints) | The constraints to be applied | `string` | `"arch=amd64"` | no |
 | <a name="input_units"></a> [units](#input\_units) | The number of units | `number` | `1` | no |
 | <a name="input_base"></a> [base](#input\_base) | The charm base | `string` | `"ubuntu@22.04"` | no |
 | <a name="input_channel"></a> [channel](#input\_channel) | The charm channel | `string` | `"latest/stable"` | no |
