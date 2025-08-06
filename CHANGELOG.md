@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.2](https://github.com/wood-push-melon/glauth-k8s-operator/compare/v1.2.1...v1.2.2) (2025-08-06)
+
+
+### Bug Fixes
+
+* bump lib ([ae6ea3f](https://github.com/wood-push-melon/glauth-k8s-operator/commit/ae6ea3fdb746227ab6312242191bb178d1290409))
+* bump lib ([2c7b3fa](https://github.com/wood-push-melon/glauth-k8s-operator/commit/2c7b3fab617275f3cf05487e8d6542a51741a956))
+
 ## [1.2.1](https://github.com/wood-push-melon/glauth-k8s-operator/compare/v1.2.0...v1.2.1) (2025-08-06)
 
 
