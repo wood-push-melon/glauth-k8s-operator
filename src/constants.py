@@ -34,3 +34,5 @@ LOCAL_CA_CERTS_DIR = Path("/usr/local/share/ca-certificates")
 SERVER_CA_CERT = LOCAL_CA_CERTS_DIR / "glauth-ca.crt"
 SERVER_KEY = PRIVATE_KEY_DIR / "glauth-server.key"
 SERVER_CERT = LOCAL_CA_CERTS_DIR / "glauth-server.crt"
+
+A_TEST_CONSTANT = "test"
